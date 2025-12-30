@@ -1,0 +1,7 @@
+{
+  "/page": "app/page.js",
+  "/parents/page": "app/parents/page.js",
+  "/child-results/page": "app/child-results/page.js",
+  "/report/page": "app/report/page.js",
+  "/upload/page": "app/upload/page.js"
+}
