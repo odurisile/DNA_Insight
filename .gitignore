@@ -1,0 +1,30 @@
+# Node/Next artifacts
+node_modules
+.next
+out
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Python/venv
+.venv
+venv
+backend/venv/
+backend/.venv/
+__pycache__
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# DNA uploads / sensitive genomes
+backend/uploads/
+backend/upload/
+
+# Large/reference datasets
+backend/clinvar.gz
+backend/nih/clinvar.gz
+backend/nih/dbsnp.gz
+backend/nih.duckdb
