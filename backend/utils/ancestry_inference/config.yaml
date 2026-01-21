@@ -1,0 +1,51 @@
+reference:
+  name: 1000G_phase3
+  base_dir: data/reference/1000g
+  plink_prefix: data/reference/1000g/1000g_phase3
+  metadata_tsv: data/reference/1000g/1000g_samples.tsv
+  population_map:
+    YRI: AFR
+    LWK: AFR
+    GWD: AFR
+    MSL: AFR
+    ESN: AFR
+    CEU: EUR
+    GBR: EUR
+    IBS: EUR
+    TSI: EUR
+    FIN: EUR
+    CHB: EAS
+    JPT: EAS
+    CHS: EAS
+    CDX: EAS
+    KHV: EAS
+    GIH: SAS
+    PJL: SAS
+    ITU: SAS
+    STU: SAS
+    BEB: SAS
+    CLM: AMR
+    PUR: AMR
+    MXL: AMR
+    PEL: AMR
+tools:
+  plink2: plink2
+  admixture: admixture
+  threads: 4
+qc:
+  max_missing_rate: 0.05
+  min_maf: 0.01
+  ld_window_kb: 200
+  ld_step: 50
+  ld_r2: 0.2
+  min_snps: 5000
+inference:
+  method: admixture_pca
+  k: 5
+  pcs: 20
+  confidence_floor: 0.5
+cache:
+  pca_cache: data/reference/1000g/cache/pca_reference.npz
+  admixture_cache: data/reference/1000g/cache/admixture_reference.json
+output:
+  plots: true

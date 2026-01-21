@@ -1,0 +1,39 @@
+model_version: calib_v1_example
+sex_stats:
+  male:
+    mean_pgs: 0.0
+    sd_pgs: 1.0
+    mean_height_cm: 176.0
+    sd_height_cm: 7.0
+  female:
+    mean_pgs: 0.0
+    sd_pgs: 1.0
+    mean_height_cm: 162.0
+    sd_height_cm: 6.5
+ancestry_coefficients:
+  AFR: 8.0
+  EUR: 0.0
+  NAT: 2.0
+  EAS: -1.0
+  SAS: -0.5
+baseline_ancestry:
+  AFR: 0.1
+  EUR: 0.7
+  NAT: 0.05
+  EAS: 0.1
+  SAS: 0.05
+residual_sd_cm: 5.0
+ancestry_penalty: 0.15
+component_model:
+  intercept: 0.0
+  height_base_coef: 1.0
+  sex_binary_coef: 0.0
+  component_coefs:
+    AFR_score: 0.0
+    EUR_score: 0.0
+  ancestry_coefs:
+    AFR: 8.0
+    EUR: 0.0
+    NAT: 2.0
+    EAS: -1.0
+    SAS: -0.5
