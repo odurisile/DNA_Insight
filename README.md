@@ -61,6 +61,14 @@ The dev server runs on port 3000 by default. Ensure the backend (port 5000) is r
 2) Start frontend (port 3000).
 3) Visit the frontend, upload parent DNA files, view child results.
 4) Optionally generate a PDF or request an AI explanation.
+   <img width="431" height="610" alt="image" src="https://github.com/user-attachments/assets/f174cf24-85db-4c90-9165-c690fc3fa22b" />
+
+   <img width="734" height="649" alt="image" src="https://github.com/user-attachments/assets/a4716275-7d71-43c5-aab3-e29ef06e199e" />
+
+   <img width="1109" height="576" alt="image" src="https://github.com/user-attachments/assets/b7ef0a23-ce2f-4b46-a991-84453ec57e15" />
+
+   
+
 
 ## Troubleshooting
 - Storage/Quota issues: Large genomes are never stored in browser storage; only small IDs are. Reloading the tab drops in-memory caches—re-upload to regenerate results.
