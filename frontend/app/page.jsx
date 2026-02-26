@@ -4,6 +4,7 @@ import Link from "next/link";
 import ScienceIcon from "@mui/icons-material/Science";
 import GroupsIcon from "@mui/icons-material/Groups";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import HeightIcon from "@mui/icons-material/Height";
 
 export default function Home() {
   const tiles = [
@@ -20,6 +21,13 @@ export default function Home() {
       href: "/parents",
       icon: <GroupsIcon color="primary" />,
       cta: "Predict Together"
+    },
+    {
+      title: "Height Polygenic Score",
+      description: "Upload a raw DNA file to view a demo height PGS with confidence and intervals.",
+      href: "/height",
+      icon: <HeightIcon sx={{ color: "#22c55e" }} />,
+      cta: "Compute Height PGS"
     }
   ];
 

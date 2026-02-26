@@ -1,3 +1,4 @@
+import json
 import os
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
@@ -8,6 +9,8 @@ from utils.risk_engine import compute_health_risk
 from utils.child_predictor import predict_child
 from utils.pdf_engine import generate_pdf_report
 from utils.genotype_panel import extract_genotype_panel
+from utils.height_pgs import compute_height_pgs
+from utils.ancestry_inference import infer_global_ancestry_from_file
 
 app = Flask(__name__)
 CSRF_COOKIE_SECURE = True
@@ -121,6 +124,15 @@ def upload_parents():
 
     child = predict_child(parentA, parentB)
 
+    # Height PGS for the sampled child genome (sex-specific)
+    try:
+        child_height_male = compute_height_pgs(child.get("child_genome") or {}, sex="male")
+        child_height_female = compute_height_pgs(child.get("child_genome") or {}, sex="female")
+        child_height = {"male": child_height_male, "female": child_height_female}
+    except Exception as e:
+        child_height = {"error": f"height_pgs_failed: {e}"}
+    child["child_height_pgs"] = child_height
+
     return jsonify({
         "parentA": parentA_data,
         "parentB": parentB_data,
@@ -165,7 +177,67 @@ def status():
 
 @app.route("/", methods=["GET"])
 def root():
-    return jsonify({"status": "Backend running", "endpoints": ["/status", "/upload_dna", "/upload_parents", "/generate_pdf"]})
+    return jsonify({"status": "Backend running", "endpoints": ["/status", "/upload_dna", "/upload_parents", "/generate_pdf", "/height_pgs"]})
+
+
+# ---------------------------------------------------------
+# 4) HEIGHT POLYGENIC SCORE
+# ---------------------------------------------------------
+@app.post("/height_pgs")
+def height_pgs():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    upload = request.files["file"]
+    if upload.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    file_path = os.path.join(UPLOAD_FOLDER, upload.filename)
+    upload.save(file_path)
+
+    try:
+        genome = parse_raw_dna_file(file_path)
+    except Exception as e:
+        return jsonify({"error": "Failed to parse genotype file", "details": str(e)}), 400
+
+    sex = (request.form.get("sex") or "unspecified").lower()
+    ancestry_payload = request.form.get("global_ancestry")
+    global_ancestry = None
+    if ancestry_payload:
+        try:
+            global_ancestry = json.loads(ancestry_payload)
+        except Exception as e:
+            return jsonify({"error": "Invalid global_ancestry JSON", "details": str(e)}), 400
+    elif os.environ.get("ANCESTRY_INFERENCE_CONFIG"):
+        try:
+            ancestry_output = infer_global_ancestry_from_file(
+                raw_path=file_path,
+                output_dir=os.path.join(os.getcwd(), "uploads", "ancestry"),
+                config_path=os.environ["ANCESTRY_INFERENCE_CONFIG"],
+            )
+            global_ancestry = ancestry_output.get("global_ancestry")
+        except Exception as e:
+            return jsonify({"error": "Failed to infer ancestry", "details": str(e)}), 500
+
+    observed_height_cm = None
+    if request.form.get("observed_height_cm"):
+        try:
+            observed_height_cm = float(request.form.get("observed_height_cm"))
+        except Exception as e:
+            return jsonify({"error": "Invalid observed_height_cm", "details": str(e)}), 400
+
+    try:
+        result = compute_height_pgs(
+            genome, sex=sex, global_ancestry=global_ancestry, observed_height_cm=observed_height_cm
+        )
+    except FileNotFoundError:
+        return jsonify({"error": "Height weights file not found", "details": "Expected height_demo_weights.csv under backend/nih/"}), 500
+    except Exception as e:
+        return jsonify({"error": "Failed to compute height PGS", "details": str(e)}), 500
+
+    return jsonify(result)
 
 
 if __name__ == "__main__":

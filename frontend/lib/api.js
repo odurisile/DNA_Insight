@@ -24,3 +24,15 @@ export async function generatePDF(json) {
   });
   return await res.blob();
 }
+
+export async function computeHeightPGS(formData) {
+  const res = await fetch(`${BACKEND_URL}/height_pgs`, {
+    method: "POST",
+    body: formData
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Height PGS request failed");
+  }
+  return res.json();
+}

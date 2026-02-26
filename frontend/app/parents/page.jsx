@@ -35,7 +35,8 @@ export default function ParentsUploadPage() {
       child: {
         child_traits: data.child?.child_traits,
         child_health: data.child?.child_health,
-        child_trait_distribution: data.child?.child_trait_distribution
+        child_trait_distribution: data.child?.child_trait_distribution,
+        child_height_pgs: data.child?.child_height_pgs
       }
     };
     sessionStorage.setItem("childData", JSON.stringify(compact));

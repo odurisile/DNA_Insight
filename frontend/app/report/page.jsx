@@ -184,10 +184,8 @@ export default function ReportPage() {
                 {[
                   { label: "Eye color", data: traits.eye_color },
                   { label: "Hair color", data: traits.hair_color },
-                  { label: "Skin tone", data: traits.skin_color },
                   { label: "Freckling", data: traits.freckling },
                   { label: "Tanning response", data: traits.tanning_response },
-                  { label: "Face shape", data: traits.face_shape },
                   { label: "Lactose tolerance", data: traits.lactose_tolerance },
                   { label: "Caffeine metabolism", data: traits.caffeine_metabolism },
                   { label: "Muscle performance", data: traits.muscle_performance },
