@@ -8,6 +8,18 @@ out
 .env.local
 .env.*.local
 
+# Python
+__pycache__/
+*.pyc
+
+# Next.js
+.next/
+out/
+
+# Misc
+node_modules/
+
+
 # Python/venv
 .venv
 venv
@@ -28,3 +40,5 @@ backend/clinvar.gz
 backend/nih/clinvar.gz
 backend/nih/dbsnp.gz
 backend/nih.duckdb
+backend/nih/gwas_50k.db
+backend/nih/gwas.tsv

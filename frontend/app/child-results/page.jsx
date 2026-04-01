@@ -10,12 +10,14 @@ import HeightPGSCard from "@/components/HeightPGSCard";
 // ---------------------------------------------
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+// Converts a hex color string into an RGB tuple.
 const hexToRgb = (hex) => {
   const clean = hex.replace("#", "");
   const int = parseInt(clean, 16);
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
 };
 
+// Converts RGB values into HSL so hue/saturation/lightness can be adjusted independently.
 const rgbToHsl = (r, g, b) => {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -36,6 +38,7 @@ const rgbToHsl = (r, g, b) => {
   return { h, s, l };
 };
 
+// Converts HSL values back into RGB values for CSS rendering.
 const hslToRgb = (h, s, l) => {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -53,6 +56,7 @@ const hslToRgb = (h, s, l) => {
   return [r, g, b];
 };
 
+// Estimates MC1R-driven redness intensity from selected MC1R SNP genotypes.
 const mc1rRednessFactor = (genotypes = {}) => {
   // Count derived/red-associated alleles (T) across MC1R SNPs (include 5009)
   const mc1rSnps = ["rs1805007", "rs1805008", "rs1805009"];
@@ -64,6 +68,7 @@ const mc1rRednessFactor = (genotypes = {}) => {
   return clamp01(count / 4); // 0..1
 };
 
+// Applies an MC1R-based red hue/saturation shift to a base hair color.
 const applyMc1rRedShift = (baseRgb, darknessScore, maxScore, mc1rGenotypes) => {
   const baseHsl = rgbToHsl(baseRgb[0], baseRgb[1], baseRgb[2]);
   const mc1r = mc1rRednessFactor(mc1rGenotypes);
@@ -87,15 +92,21 @@ const applyMc1rRedShift = (baseRgb, darknessScore, maxScore, mc1rGenotypes) => {
 };
 
 export default function ChildResults() {
+  // Loaded simulation payload for both parents and predicted child outcomes.
   const [data, setData] = useState(null);
+  // Initial loading state while reading session data.
   const [loading, setLoading] = useState(true);
+  // Toggle for SNP editing/debug-only visual diagnostics.
   const [debugMode, setDebugMode] = useState(false);
+  // Expand/collapse state for large heatmaps.
   const [hairHeatmapExpanded, setHairHeatmapExpanded] = useState(false);
   const [skinHeatmapExpanded, setSkinHeatmapExpanded] = useState(false);
   const [eyeHeatmapExpanded, setEyeHeatmapExpanded] = useState(false);
+  // Local editable copies of parent SNP sets used in debug mode.
   const [editableSnpsA, setEditableSnpsA] = useState({ eye: {}, hair: {}, skin: {} });
   const [editableSnpsB, setEditableSnpsB] = useState({ eye: {}, hair: {}, skin: {} });
 
+  // Load prediction payload from session storage and initialize editable SNP buffers.
   useEffect(() => {
     const raw = sessionStorage.getItem("childData");
     if (raw) {
@@ -140,6 +151,7 @@ export default function ChildResults() {
   const parentKeySnpsA = debugMode ? editableSnpsA : (parentA?.key_snps || {});
   const parentKeySnpsB = debugMode ? editableSnpsB : (parentB?.key_snps || {});
 
+  // Updates one parent SNP field in the debug editor.
   const updateSnp = (parent, trait, snp, value) => {
     if (parent === "A") {
       setEditableSnpsA((prev) => ({
@@ -154,6 +166,7 @@ export default function ChildResults() {
     }
   };
 
+  // Restores editable SNP values back to the original loaded parent SNPs.
   const resetToOriginal = () => {
     if (parentA?.key_snps && parentB?.key_snps) {
       setEditableSnpsA({
@@ -187,6 +200,7 @@ export default function ChildResults() {
     }
   ].filter(b => b.probs);
 
+  // Renders probability cards for a single trait in a Punnett-style summary block.
   const renderPunnett = (block) => {
     const entries = Object.entries(block.probs || {}).sort((a, b) => b[1] - a[1]);
     return (
@@ -218,6 +232,7 @@ export default function ChildResults() {
     );
   };
 
+  // Renders an interactive debug panel for manually editing key SNP inputs.
   const renderDebugPanel = () => {
     const allSnps = {
       eye: ["rs12913832", "rs1800407", "rs1126809", "rs16891982", "rs12203592", "rs1408799"],
@@ -366,6 +381,7 @@ export default function ChildResults() {
   //   );
   // };
 
+  // Builds and renders a skin-tone heatmap from parent skin-related SNP combinations.
   const renderSkinHeatmap = () => {
     const skinA = parentKeySnpsA.skin;
     const skinB = parentKeySnpsB.skin;
@@ -383,11 +399,13 @@ export default function ChildResults() {
     const snpOrder = targetSnps.filter((snp) => skinA[snp] && skinB[snp]);
     if (snpOrder.length === 0) return null;
 
+    // Standardizes genotype strings into a two-allele array.
     const normalizeGenotype = (geno) => {
       const alleles = (geno || "").toUpperCase().match(/[A-Z]/g) || [];
       return alleles.slice(0, 2);
     };
 
+    // Returns possible gamete alleles and their Mendelian probabilities for one SNP.
     const gametesOneSnp = (geno) => {
       const alleles = normalizeGenotype(geno);
       if (alleles.length < 2) return [];
@@ -400,6 +418,7 @@ export default function ChildResults() {
       ];
     };
 
+    // Merges duplicate multi-SNP gametes and sums their probabilities.
     const dedupeGametes = (gametes, orderedSnps) => {
       const merged = new Map();
       gametes.forEach((g) => {
@@ -414,6 +433,7 @@ export default function ChildResults() {
       return Array.from(merged.values());
     };
 
+    // Builds all parent multi-SNP gametes with probabilities.
     const buildParentGametes = (skinSet, orderedSnps, maxGametes = Number.POSITIVE_INFINITY) => {
       let combos = [{ allelesBySnp: {}, p: 1 }];
       for (const snp of orderedSnps) {
@@ -444,6 +464,7 @@ export default function ChildResults() {
       }));
     };
 
+    // Combines one gamete from each parent into child SNP genotypes.
     const buildChildGenos = (gameteA, gameteB) => {
       const out = {};
       snpOrder.forEach((snp) => {
@@ -464,6 +485,7 @@ export default function ChildResults() {
       rs1805007: "C", 
     };
 
+    // Resolves the best effect allele to use for each SNP based on observed parent alleles.
     const resolveEffectAllele = (snp, gamA, gamB) => {
       const intended = effectAlleleBySnp[snp];
       const observed = new Set();
@@ -477,6 +499,7 @@ export default function ChildResults() {
       return observed.values().next().value || null;
     };
 
+    // Counts effect-allele dosage (0/1/2) for a specific child SNP genotype.
     const dosageForSnp = (childGenos, snp, effectAllele) => {
       const effect = effectAllele;
       if (!effect) return 0;
@@ -484,8 +507,10 @@ export default function ChildResults() {
       return (geno.match(new RegExp(effect, "g")) || []).length;
     };
 
+    // Logistic function used to convert linear score to probability.
     const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
+    // Estimates probability of lighter skin from weighted SNP dosages.
     const pLightFromGenos = (childGenos, effectAlleles) => {
       // MC1R is excluded from skin lightness by design.
       const b0 = -2.2;
@@ -518,8 +543,10 @@ export default function ChildResults() {
   { stop: 1.00, color: [45, 26, 17] },    // ultra-deep eumelanin
     ];
 
+    // Linear interpolation helper used for gradient color sampling.
     const lerp = (a, b, t) => Math.round(a + (b - a) * t);
 
+    // Converts a normalized lightness score to an RGB shade from gradient stops.
     const shade = (val, maxVal) => {
       const adjustedVal = Math.max(0, val ); 
       const tLinear = maxVal === 0 ? 0 : Math.max(0, Math.min(1, adjustedVal / maxVal));
@@ -537,6 +564,7 @@ export default function ChildResults() {
       return `rgb(${last[0]},${last[1]},${last[2]})`;
     };
 
+    // Debug helper that checks expected Mendelian ratios for a sample cross.
     const findMendelianCheck = () => {
       for (const snp of snpOrder) {
         const a = normalizeGenotype(skinA[snp]);
@@ -633,6 +661,7 @@ export default function ChildResults() {
     );
   };
 
+  // Builds and renders the eye-color heatmap from shared eye SNP haplotypes.
   const renderEyeHeatmap = () => {
     const eyeA = parentKeySnpsA.eye;
     const eyeB = parentKeySnpsB.eye;
@@ -661,8 +690,10 @@ export default function ChildResults() {
     const snpOrder = targetSnps.filter((snp) => eyeA[snp] && eyeB[snp]);
     if (snpOrder.length === 0) return null;
 
+    // Splits genotype text into normalized allele arrays.
     const allelesFor = (geno) => (geno || "").replace("/", "").replace("|", "").toUpperCase().split("");
 
+    // Generates haplotype strings and probabilities from selected eye SNPs.
     const hapStrings = (eyeSet) => {
       const alleleChoices = snpOrder.map((snp) => allelesFor(eyeSet[snp]));
       const combos = alleleChoices.reduce((acc, alleles) => {
@@ -696,7 +727,9 @@ export default function ChildResults() {
       { stop: 1.0, color: [0x2B, 0x1B, 0x12] }, // dark brown
     ];
 
+    // Linear interpolation helper used by color gradient sampling.
     const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+    // Samples an RGB color from a stop-based gradient at normalized position t.
     const sampleGradient = (stops, t) => {
       const clamped = Math.max(0, Math.min(1, t));
       for (let i = 1; i < stops.length; i++) {
@@ -710,6 +743,7 @@ export default function ChildResults() {
       return stops[stops.length - 1].color;
     };
 
+    // Alpha blends two RGB colors for subtle score-driven tinting.
     const blend = (base, overlay, alpha) =>
       base.map((v, idx) => Math.round(v * (1 - alpha) + overlay[idx] * alpha));
 
@@ -728,9 +762,11 @@ export default function ChildResults() {
     // No extra bias; relying on explicit genotype effects above for ordering
     const aBiasByHerc2 = { AA: 0, AG: 0, GG: 0 };
 
+    // Normalizes genotype ordering so equivalent allele pairs compare consistently.
     const normalizedGenotype = (rowAllele, colAllele) =>
       [rowAllele.toUpperCase(), colAllele.toUpperCase()].sort().join("");
 
+    // Scores an eye-color cell from paired parent haplotypes.
     const scorePair = (rowHap, colHap) => {
       let score = 0;
       let herc2Geno = "GG";
@@ -761,6 +797,7 @@ export default function ChildResults() {
       });
     });
 
+    // Converts eye score into display colors/labels for the heatmap cell.
     const shadeEye = (score) => {
       const denom = maxScore === minScore ? 1 : (maxScore - minScore);
       const tLinear = Math.max(0, Math.min(1, (score - minScore) / denom));
@@ -779,6 +816,7 @@ export default function ChildResults() {
         IRF4_rs12203592: "CC",
         TYRP1_rs1408799: "GG",
       };
+      // Explicit fallback scoring branch when HERC2 genotype is directly available.
       const computeExplicitScore = (hercGeno) => {
         let s = 0;
         s += genoEffect.HERC2_rs12913832[hercGeno];
@@ -853,6 +891,7 @@ export default function ChildResults() {
     );
   };
 
+  // Builds and renders the hair-color heatmap from parent hair SNP gamete combinations.
   const renderHairHeatmap = () => {
     const hairA = parentKeySnpsA.hair;
     const hairB = parentKeySnpsB.hair;
@@ -872,11 +911,13 @@ export default function ChildResults() {
     const snpOrder = targetSnps.filter((snp) => hairA[snp] && hairB[snp]);
     if (snpOrder.length === 0) return null;
 
+    // Standardizes genotype strings into a two-allele array.
     const normalizeGenotype = (geno) => {
       const alleles = (geno || "").toUpperCase().match(/[A-Z]/g) || [];
       return alleles.slice(0, 2);
     };
 
+    // Returns possible gamete alleles and probabilities for one SNP.
     const gametesOneSnp = (geno) => {
       const alleles = normalizeGenotype(geno);
       if (alleles.length < 2) return [];
@@ -889,6 +930,7 @@ export default function ChildResults() {
       ];
     };
 
+    // Builds all parent multi-SNP gametes used for the heatmap grid.
     const buildParentGametes = (hairSet, orderedSnps, maxGametes = Number.POSITIVE_INFINITY) => {
       let combos = [{ allelesBySnp: {}, p: 1 }];
       for (const snp of orderedSnps) {
@@ -920,6 +962,7 @@ export default function ChildResults() {
       }));
     };
 
+    // Combines a parent A and parent B gamete into child SNP genotypes.
     const buildChildGenos = (gameteA, gameteB) => {
       const out = {};
       snpOrder.forEach((snp) => {
@@ -932,6 +975,7 @@ export default function ChildResults() {
       return out;
     };
 
+    // Logistic function used by probabilistic score transforms.
     const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
     const effectAlleleBySnp = {
@@ -945,6 +989,7 @@ export default function ChildResults() {
       rs1042602: "A",
     };
 
+    // Counts effect-allele dosage for a specific SNP genotype.
     const dosageForSnp = (childGenos, snp) => {
       const effect = effectAlleleBySnp[snp];
       if (!effect) return 0;
@@ -967,6 +1012,7 @@ export default function ChildResults() {
     };
     const lightBias = -1.6;
 
+    // Converts genotype-derived scores into class probabilities (softmax).
     const classProbs = (childGenos) => {
       const redScore =
         redBias +
@@ -1004,6 +1050,7 @@ export default function ChildResults() {
       );
     };
 
+    // Debug helper for one-SNP Mendelian child genotype distribution.
     const singleSnpChildDistribution = (genoA, genoB) => {
       const dist = {};
       const gA = gametesOneSnp(genoA);
@@ -1037,8 +1084,10 @@ export default function ChildResults() {
     const brownAnchor = [140, 95, 60];
     const darkBrownAnchor = [70, 45, 30];
 
+    // Color interpolation helpers for probability-based cell tinting.
     const lerp = (a, b, t) => Math.round(a + (b - a) * t);
     const mix = (a, b, t) => a.map((v, idx) => lerp(v, b[idx], clamp01(t)));
+    // Tints each class color by confidence to keep uncertain cells muted.
     const probabilityTint = (baseRgb, prob, classKey) => {
       const t = clamp01(prob);
       if (classKey === "black") {
@@ -1133,6 +1182,7 @@ export default function ChildResults() {
     );
   };
 
+  // Renders compact SNP-level Punnett cards for top SNPs in each trait group.
   const snpPunnetts = () => {
     const cards = [];
     const traitSnps = [
@@ -1163,6 +1213,7 @@ export default function ChildResults() {
     });
     return cards;
   };
+  // Builds a classic 2x2 Punnett grid for rs12913832 eye genotype inheritance.
   const buildEyePunnett = () => {
     if (!parentEyeA || !parentEyeB) return null;
 
@@ -1270,6 +1321,7 @@ export default function ChildResults() {
     { key: "folate_metabolism", label: "Folate metabolism", value: childTraits.folate_metabolism },
   ].filter(t => t.value);
 
+  // Renders probability chips for a trait's distribution object.
   const renderDistChips = (traitKey) => {
     const dist = distribution[traitKey];
     if (!dist) return null;

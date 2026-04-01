@@ -24,17 +24,23 @@ import ScienceIcon from "@mui/icons-material/Science";
 import { generatePDF } from '@/lib/api';
 
 export default function ReportPage() {
+  // Holds the full report payload loaded from session storage.
   const [data, setData] = useState(null);
 
+  // Load serialized report data once on initial page mount.
   useEffect(() => {
     const raw = sessionStorage.getItem("reportData");
     if (raw) setData(JSON.parse(raw));
   }, []);
 
+  // Normalize optional health/risk structures from different payload versions.
   const health = data?.health || data?.risk;
+  // Trait predictions used by the Trait Studio cards.
   const traits = data?.traits || {};
+  // SNP evidence blocks rendered in the genotype evidence section.
   const genotypePanel = data?.genotype_panel || [];
 
+  // Flatten PRS traits into table-like rows for UI rendering.
   const prsRows = useMemo(() => {
     if (!health?.prs) return [];
     return Object.entries(health.prs)
@@ -46,14 +52,17 @@ export default function ReportPage() {
       }));
   }, [health]);
 
+  // Merge dominant and carrier variants into one list with category tags.
   const variantRows = useMemo(() => {
     const dominants = (health?.dominant_mutations || []).map(v => ({ ...v, category: "Dominant" }));
     const carriers = (health?.carrier_status || []).map(v => ({ ...v, category: "Carrier" }));
     return [...dominants, ...carriers];
   }, [health]);
 
+  // Format numeric values as percentages for consistent display.
   const percent = (val) => (val || val === 0) ? `${val.toFixed(1)}%` : "—";
 
+  // Resolve a trait payload into a readable value string.
   const traitValue = (d) => {
     if (!d) return "—";
     if (typeof d === "string") return d;
@@ -64,6 +73,7 @@ export default function ReportPage() {
     return "—";
   };
 
+  // Extract confidence when present in a structured trait payload.
   const traitConfidence = (d) => {
     if (d && typeof d === "object" && typeof d.confidence === "number") {
       return percent(d.confidence * 100);
@@ -73,6 +83,7 @@ export default function ReportPage() {
 
   if (!data) return <div className='container'>No report data found.</div>;
 
+  // Generate and trigger download of the server-generated PDF report.
   async function downloadPDF() {
     const payload = health ? { ...data, health } : data;
     const blob = await generatePDF(payload);
@@ -90,8 +101,7 @@ export default function ReportPage() {
           <Chip label="Interactive genotype evidence" size="small" sx={{ width: "fit-content", background: "rgba(255,255,255,0.12)", color: "#fff" }} />
           <Typography variant='h4'>Genome Portrait</Typography>
           <Typography variant='body1' sx={{ maxWidth: 680, opacity: 0.9 }}>
-            A Promethease-style evidence layer wrapped in a 23andMe-like experience. Every section below
-            ties your calls back to the underlying genotype.
+            Every section belowties your calls back to the underlying genotype.
           </Typography>
           <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
             <Button variant='contained' color='secondary' startIcon={<DownloadIcon />} onClick={downloadPDF}>
@@ -113,7 +123,7 @@ export default function ReportPage() {
                 <Typography variant='h6'>Risk Dashboard</Typography>
               </Stack>
               <Typography variant='body2' color="text.secondary">
-                Clinical-style severity plus consumer-friendly summaries.
+                A summary of your genetic health risks, based on polygenic scores and key variants. 
               </Typography>
               <div className="chip-row">
                 {health?.risk_summary && Object.entries(health.risk_summary).map(([k, v]) => (
@@ -192,6 +202,11 @@ export default function ReportPage() {
                   { label: "Alcohol flush", data: traits.alcohol_flush },
                   { label: "Nicotine dependence", data: traits.nicotine_dependence },
                   { label: "Folate metabolism", data: traits.folate_metabolism },
+                  { label: "Vitamin D levels", data: traits.vitamin_d },
+                  { label: "Sleep chronotype", data: traits.sleep_chronotype },
+                  { label: "Pain sensitivity", data: traits.pain_sensitivity },
+                  { label: "Endurance", data: traits.endurance },
+                  { label: "Bitter taste", data: traits.bitter_taste },
                 ].map(({ label, data: d }) => {
                   const conf = traitConfidence(d);
                   const value = traitValue(d);
@@ -267,7 +282,7 @@ export default function ReportPage() {
             <Typography variant='h6'>Genotype evidence</Typography>
           </Stack>
           <Typography variant='body2' color="text.secondary" sx={{ mb: 1 }}>
-            Promethease-like transparency: the SNPs and genotypes behind the calls above.
+            The SNPs and genotypes behind the calls above.
           </Typography>
           <Divider sx={{ mb: 2 }} />
           {genotypePanel.length === 0 && (
