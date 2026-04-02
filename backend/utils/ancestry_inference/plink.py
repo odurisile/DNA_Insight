@@ -57,7 +57,12 @@ def build_plink_ld_prune_command(
     ]
 
 
-def build_plink_extract_command(plink2: str, bfile_prefix: str, extract_path: str, out_prefix: str) -> List[str]:
+def build_plink_extract_command(
+    plink2: str,
+    bfile_prefix: str,
+    extract_path: str,
+    out_prefix: str,
+) -> List[str]:
     return [
         plink2,
         "--bfile",
@@ -98,3 +103,31 @@ def build_plink_pca_command(plink2: str, bfile_prefix: str, out_prefix: str, pcs
         "--out",
         out_prefix,
     ]
+
+
+def load_fam_sample_ids(fam_path: str) -> List[str]:
+    """
+    Load sample IDs from a PLINK .fam file.
+
+    .fam columns:
+    FID IID PID MID SEX PHENOTYPE
+
+    We use IID (column 2) as the sample ID because that is usually
+    what matches reference metadata like 1000 Genomes sample names.
+    """
+    sample_ids: List[str] = []
+
+    with open(fam_path, "r", encoding="utf-8") as f:
+        for line_number, line in enumerate(f, start=1):
+            parts = line.strip().split()
+
+            if len(parts) < 2:
+                raise ValueError(f"Invalid .fam line {line_number}: {line!r}")
+
+            iid = parts[1].strip()
+            if not iid:
+                raise ValueError(f"Empty IID in .fam line {line_number}")
+
+            sample_ids.append(iid)
+
+    return sample_ids

@@ -42,3 +42,27 @@ backend/nih/dbsnp.gz
 backend/nih.duckdb
 backend/nih/gwas_50k.db
 backend/nih/gwas.tsv
+
+# PLINK / genomics
+*.bed
+*.bim
+*.fam
+*.pgen
+*.pvar
+*.psam
+*.log
+*.nosex
+*.eigenvec
+*.eigenval
+*temporary*
+
+# Raw datasets
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+*.tsv
+*.csv
+*.gz
+
+# Models
+*joblib
