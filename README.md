@@ -98,7 +98,7 @@ Set `NEXT_PUBLIC_BACKEND_URL` if the frontend should call a non-local backend.
    
    <img width="1765" height="797" alt="image" src="https://github.com/user-attachments/assets/c07f63bf-b5be-42de-b189-8da3cd5054f7" />
    
-   <img width="734" height="649" alt="image" src="https://github.com/user-attachments/assets/a4716275-7d71-43c5-aab3-e29ef06e199e" />
+   <img width="1094" height="580" alt="image" src="https://github.com/user-attachments/assets/6e9a237d-3d13-46a7-9fb2-b28396f82a39" />
 
    <img width="1109" height="576" alt="image" src="https://github.com/user-attachments/assets/b7ef0a23-ce2f-4b46-a991-84453ec57e15" />
 
