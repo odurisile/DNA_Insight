@@ -18,6 +18,8 @@ Create a `.env` (or `.env.local`) in the repo root using `.env.example`:
 ```
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_MODEL=gpt-4o-mini
+NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:5000
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 The AI explainer is optional; without a key, that endpoint returns 503.
 
@@ -30,6 +32,7 @@ pip install -r requirements.txt
 python app.py
 ```
 The server listens on port 5000.
+The backend accepts `.txt`, `.csv`, and `.tsv` genotype uploads and stores them under randomized filenames.
 
 ### Reference data (not committed)
 Large files like `backend/clinvar.gz`, `backend/nih/clinvar.gz`, and `backend/nih/dbsnp.gz` are ignored. Place them under `backend/` locally or use Git LFS if needed.
@@ -44,14 +47,18 @@ npm install
 npm run dev
 ```
 Dev server runs on port 3000. Ensure the backend (port 5000) is running for API calls.
+Set `NEXT_PUBLIC_BACKEND_URL` if the frontend should call a non-local backend.
 
 ## Features
 - Parent DNA upload + child trait/health prediction (`/parents`, `/child-results`)
 - Punnett-style visualizations and genotype heatmaps
 - PDF report generation
+- Supported gene lookup tool (`/lookup`, backend `/gene_lookup`)
+- GWAS trait explorer (`/traits`, backend `/gwas_traits`)
 - In-memory results cache: only a small `childResultId` is stored in `sessionStorage`; large payloads stay in memory
 - Optional AI summary (`/api/explain-results`) when `OPENAI_API_KEY` is set
 - Height Polygenic Score demo (`/height_pgs` backend, `/height` frontend)
+- Demo privacy policy and terms pages for pre-launch review
 
 ## Basic workflow
 1) Start backend (port 5000).
@@ -59,6 +66,8 @@ Dev server runs on port 3000. Ensure the backend (port 5000) is running for API 
 3) Upload parent DNA files; view child results.
 4) Optionally generate a PDF or request an AI explanation.
 5) For height PGS, open `/height`, upload a single raw DNA file, and view the bell-curve card.
+6) For supported gene lookup, open `/lookup`, upload a raw DNA file, and search by gene symbol or rsID.
+7) For all matched GWAS traits, open `/traits`, upload a raw DNA file, and explore scored trait strings from the database.
 
 ## Height PGS
 - Backend endpoint: `POST /height_pgs` with form-data `file`, optional `sex` (male/female/unspecified), and optional `global_ancestry` JSON (e.g. `{"AFR":0.6,"EUR":0.4}`).
@@ -66,6 +75,16 @@ Dev server runs on port 3000. Ensure the backend (port 5000) is running for API 
 - Output: raw/z scores, percentile, predicted height with CI90/CI95, coverage, confidence tier, warnings, ancestry breakdown, and ancestry component scores.
 - Frontend page: `/height` with upload + sex/ancestry inputs and visualization.
 - If `global_ancestry` is omitted, the backend attempts to infer it from an AIMs panel at `backend/nih/height_ancestry_aims.csv` (populate with reference frequencies).
+
+## Supported Gene Lookup
+- Backend endpoint: `POST /gene_lookup` with form-data `file` and `query`.
+- Frontend page: `/lookup`.
+- Scope: searches the app's supported gene catalog, not a full genome-wide annotation database.
+
+## GWAS Trait Explorer
+- Backend endpoint: `POST /gwas_traits` with form-data `file` and optional `min_snps`.
+- Frontend page: `/traits`.
+- Scope: scores exact trait strings from the local `gwas_snps` table when the uploaded genome overlaps enough SNPs.
 
 ## Height Calibration Engine
 - Configurable calibration lives in `backend/utils/height_calibration/config.yaml`.
@@ -89,3 +108,8 @@ Dev server runs on port 3000. Ensure the backend (port 5000) is running for API 
 ## Troubleshooting
 - Storage/Quota: Large genomes are never stored in browser storage; only small IDs are. Reloading drops in-memory caches—re-upload to regenerate results.
 - Push rejected for large files: keep datasets/caches out of git; use LFS or download scripts if needed.
+
+## Important limitations
+- This app is informational and research-oriented. It is not medical advice, diagnosis, or treatment.
+- Uploaded genotype files are processed server-side. Do not claim that files stay only in the browser.
+- Before public launch, replace the demo privacy/terms pages with production legal text and add retention/deletion controls.

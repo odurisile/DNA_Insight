@@ -1,7 +1,11 @@
 import json
 import os
+from pathlib import Path
+from uuid import uuid4
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.utils import secure_filename
 from utils import risk_engine, trait_engine
 from utils.dna_parser import parse_raw_dna_file
 from utils.trait_engine import predict_traits
@@ -10,11 +14,30 @@ from utils.child_predictor import predict_child
 from utils.pdf_engine import generate_pdf_report
 from utils.genotype_panel import extract_genotype_panel
 from utils.height_pgs import compute_height_pgs
+from utils.gene_lookup import search_supported_genes
 from utils.ancestry_inference import infer_global_ancestry_from_file
+from utils.prs_engine import compute_all_trait_prs
 
 app = Flask(__name__)
 CSRF_COOKIE_SECURE = True
-CORS(app)
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    if origin.strip()
+]
+CORS(
+    app,
+    resources={
+        r"/upload_*": {"origins": allowed_origins},
+        r"/generate_pdf": {"origins": allowed_origins},
+        r"/gene_lookup": {"origins": allowed_origins},
+        r"/gwas_traits": {"origins": allowed_origins},
+        r"/height_pgs": {"origins": allowed_origins},
+        r"/status": {"origins": allowed_origins},
+        r"/": {"origins": allowed_origins},
+    },
+)
 
 # Key SNPs to surface for Punnett-style views
 EYE_SNPS = ["rs12913832", "rs1129038", "rs1800407", "rs12896399", "rs16891982"]
@@ -27,6 +50,8 @@ SKIN_SNPS = [
     "rs1805007",  # MC1R
 ]
 
+ALLOWED_EXTENSIONS = {".txt", ".csv", ".tsv"}
+
 
 def extract_key_snps(genome, snps):
     out = {}
@@ -36,14 +61,41 @@ def extract_key_snps(genome, snps):
     return out
 
 
+def error_response(message, status_code=400, details=None):
+    payload = {"error": message}
+    if details:
+        payload["details"] = details
+    return jsonify(payload), status_code
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large_upload(_error):
+    return error_response("File exceeds the configured upload limit", status_code=413)
+
+
+def save_upload(upload, subdir="uploads"):
+    original_name = secure_filename(upload.filename or "")
+    if not original_name:
+        raise ValueError("Empty filename")
+
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise ValueError("Unsupported file type")
+
+    upload_dir = Path(os.getcwd()) / subdir
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    stored_name = f"{uuid4().hex}{suffix}"
+    file_path = upload_dir / stored_name
+    upload.save(file_path)
+    return str(file_path)
+
+
 # ---------------------------------------------------------
 # Helper
 # ---------------------------------------------------------
 def load_genome_from_request(upload):
     """Reads raw DNA file"""
-    filepath = f"upload/{upload.filename}"
-    upload.save(filepath)
-
+    filepath = save_upload(upload, subdir="upload")
     genome = parse_raw_dna_file(filepath)
     return genome
 
@@ -54,21 +106,20 @@ def load_genome_from_request(upload):
 @app.post("/upload_dna")
 def upload_dna():
     if "file" not in request.files:
-        return {"error": "No file uploaded"}, 400
+        return error_response("No file uploaded")
 
     file = request.files["file"]
     if file.filename == "":
-        return {"error": "Empty filename"}, 400
+        return error_response("Empty filename")
 
-    filename = file.filename
+    try:
+        file_path = save_upload(file)
+        dna_data = parse_raw_dna_file(file_path)
+    except ValueError as exc:
+        return error_response(str(exc))
+    except Exception as exc:
+        return error_response("Failed to parse genotype file", details=str(exc))
 
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(file_path)
-
-    dna_data = parse_raw_dna_file(file_path)
     traits = trait_engine.predict_traits(dna_data)
     health = risk_engine.compute_health_risk(dna_data)
     genotype_panel = extract_genotype_panel(dna_data)
@@ -88,13 +139,18 @@ def upload_dna():
 @app.route("/upload_parents", methods=["POST"])
 def upload_parents():
     if "file1" not in request.files or "file2" not in request.files:
-        return jsonify({"error": "Two DNA files required"}), 400
+        return error_response("Two DNA files required")
 
     p1_file = request.files["file1"]
     p2_file = request.files["file2"]
 
-    parentA = load_genome_from_request(p1_file)
-    parentB = load_genome_from_request(p2_file)
+    try:
+        parentA = load_genome_from_request(p1_file)
+        parentB = load_genome_from_request(p2_file)
+    except ValueError as exc:
+        return error_response(str(exc))
+    except Exception as exc:
+        return error_response("Failed to parse one or both genotype files", details=str(exc))
 
     parentA_data = {
         "traits": predict_traits(parentA),
@@ -146,6 +202,8 @@ def upload_parents():
 @app.route("/generate_pdf", methods=["POST"])
 def generate_pdf():
     data = request.json
+    if not data:
+        return error_response("Missing JSON payload")
 
     user_name = data.get("name", "Anonymous")
     traits = data["traits"]
@@ -177,30 +235,97 @@ def status():
 
 @app.route("/", methods=["GET"])
 def root():
-    return jsonify({"status": "Backend running", "endpoints": ["/status", "/upload_dna", "/upload_parents", "/generate_pdf", "/height_pgs"]})
+    return jsonify({"status": "Backend running", "endpoints": ["/status", "/upload_dna", "/upload_parents", "/generate_pdf", "/gene_lookup", "/gwas_traits", "/height_pgs"]})
 
 
 # ---------------------------------------------------------
-# 4) HEIGHT POLYGENIC SCORE
+# 4) SUPPORTED GENE LOOKUP
+# ---------------------------------------------------------
+@app.post("/gene_lookup")
+def gene_lookup():
+    if "file" not in request.files:
+        return error_response("No file uploaded")
+
+    upload = request.files["file"]
+    if upload.filename == "":
+        return error_response("Empty filename")
+
+    query = (request.form.get("query") or "").strip()
+    if not query:
+        return error_response("Missing gene or rsID query")
+
+    try:
+        file_path = save_upload(upload)
+        genome = parse_raw_dna_file(file_path)
+    except ValueError as exc:
+        return error_response(str(exc))
+    except Exception as exc:
+        return error_response("Failed to parse genotype file", details=str(exc))
+
+    matches = search_supported_genes(genome, query)
+    return jsonify({
+        "query": query,
+        "catalog_scope": "supported-gene-catalog",
+        "results": matches,
+        "result_count": len(matches),
+    })
+
+
+# ---------------------------------------------------------
+# 5) GWAS TRAIT EXPLORER
+# ---------------------------------------------------------
+@app.post("/gwas_traits")
+def gwas_traits():
+    if "file" not in request.files:
+        return error_response("No file uploaded")
+
+    upload = request.files["file"]
+    if upload.filename == "":
+        return error_response("Empty filename")
+
+    try:
+        min_snps = int(request.form.get("min_snps", "2"))
+    except Exception as exc:
+        return error_response("Invalid min_snps", details=str(exc))
+
+    try:
+        file_path = save_upload(upload)
+        genome = parse_raw_dna_file(file_path)
+    except ValueError as exc:
+        return error_response(str(exc))
+    except Exception as exc:
+        return error_response("Failed to parse genotype file", details=str(exc))
+
+    traits = compute_all_trait_prs(genome, min_snps=max(1, min_snps))
+    return jsonify({
+        "catalog_scope": "gwas_snps",
+        "min_snps": max(1, min_snps),
+        "result_count": len(traits),
+        "traits": traits,
+    })
+
+
+# ---------------------------------------------------------
+# 6) HEIGHT POLYGENIC SCORE
 # ---------------------------------------------------------
 @app.post("/height_pgs")
 def height_pgs():
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return error_response("No file uploaded")
 
     upload = request.files["file"]
     if upload.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
+        return error_response("Empty filename")
 
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    file_path = os.path.join(UPLOAD_FOLDER, upload.filename)
-    upload.save(file_path)
+    try:
+        file_path = save_upload(upload)
+    except ValueError as exc:
+        return error_response(str(exc))
 
     try:
         genome = parse_raw_dna_file(file_path)
     except Exception as e:
-        return jsonify({"error": "Failed to parse genotype file", "details": str(e)}), 400
+        return error_response("Failed to parse genotype file", details=str(e))
 
     sex = (request.form.get("sex") or "unspecified").lower()
     ancestry_payload = request.form.get("global_ancestry")
@@ -209,7 +334,7 @@ def height_pgs():
         try:
             global_ancestry = json.loads(ancestry_payload)
         except Exception as e:
-            return jsonify({"error": "Invalid global_ancestry JSON", "details": str(e)}), 400
+            return error_response("Invalid global_ancestry JSON", details=str(e))
     elif os.environ.get("ANCESTRY_INFERENCE_CONFIG"):
         try:
             ancestry_output = infer_global_ancestry_from_file(
@@ -219,23 +344,27 @@ def height_pgs():
             )
             global_ancestry = ancestry_output.get("global_ancestry")
         except Exception as e:
-            return jsonify({"error": "Failed to infer ancestry", "details": str(e)}), 500
+            return error_response("Failed to infer ancestry", status_code=500, details=str(e))
 
     observed_height_cm = None
     if request.form.get("observed_height_cm"):
         try:
             observed_height_cm = float(request.form.get("observed_height_cm"))
         except Exception as e:
-            return jsonify({"error": "Invalid observed_height_cm", "details": str(e)}), 400
+            return error_response("Invalid observed_height_cm", details=str(e))
 
     try:
         result = compute_height_pgs(
             genome, sex=sex, global_ancestry=global_ancestry, observed_height_cm=observed_height_cm
         )
     except FileNotFoundError:
-        return jsonify({"error": "Height weights file not found", "details": "Expected height_demo_weights.csv under backend/nih/"}), 500
+        return error_response(
+            "Height weights file not found",
+            status_code=500,
+            details="Expected height_demo_weights.csv under backend/nih/",
+        )
     except Exception as e:
-        return jsonify({"error": "Failed to compute height PGS", "details": str(e)}), 500
+        return error_response("Failed to compute height PGS", status_code=500, details=str(e))
 
     return jsonify(result)
 

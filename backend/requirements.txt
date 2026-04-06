@@ -1,0 +1,10 @@
+duckdb
+Flask
+flask-cors
+joblib
+numpy
+pandas
+polars
+PyYAML
+reportlab
+scikit-learn

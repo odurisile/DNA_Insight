@@ -48,6 +48,9 @@ GENE_BLOCKS = [
             {"rsid": "rs4988235", "gene": "LCT"},
             {"rsid": "rs762551", "gene": "CYP1A2"},
             {"rsid": "rs1801133", "gene": "MTHFR"},
+            {"rsid": "rs2282679", "gene": "GC"},
+            {"rsid": "rs12785878", "gene": "DHCR7"},
+            {"rsid": "rs10741657", "gene": "CYP2R1"},
         ],
     },
     {
@@ -55,6 +58,8 @@ GENE_BLOCKS = [
         "description": "Muscle fiber bias and hypertension-linked markers.",
         "snps": [
             {"rsid": "rs1815739", "gene": "ACTN3"},
+            {"rsid": "rs8192678", "gene": "PPARGC1A"},
+            {"rsid": "rs4253778", "gene": "PPARA"},
             {"rsid": "rs699", "gene": "AGT"},
             {"rsid": "rs16969968", "gene": "CHRNA5"},
         ],
@@ -80,6 +85,27 @@ GENE_BLOCKS = [
         "snps": [
             {"rsid": "rs1800562", "gene": "HFE"},
             {"rsid": "rs1799945", "gene": "HFE"},
+        ],
+    },
+    {
+        "title": "Sleep & Recovery",
+        "description": "Chronotype, pain sensitivity, and recovery-linked wellness markers.",
+        "snps": [
+            {"rsid": "rs12927162", "gene": "RGS16"},
+            {"rsid": "rs228697", "gene": "PER3"},
+            {"rsid": "rs139315125", "gene": "ASB1"},
+            {"rsid": "rs4680", "gene": "COMT"},
+            {"rsid": "rs1799971", "gene": "OPRM1"},
+            {"rsid": "rs6746030", "gene": "SCN9A"},
+        ],
+    },
+    {
+        "title": "Taste Perception",
+        "description": "Bitter tasting sensitivity markers in TAS2R38.",
+        "snps": [
+            {"rsid": "rs713598", "gene": "TAS2R38"},
+            {"rsid": "rs1726866", "gene": "TAS2R38"},
+            {"rsid": "rs10246939", "gene": "TAS2R38"},
         ],
     },
 ]

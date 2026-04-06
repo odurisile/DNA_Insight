@@ -24,6 +24,9 @@ export default function NavBar() {
         <Link href="/"><Button color="primary" variant="text">Home</Button></Link>
         <Link href="/upload"><Button color="primary" variant="text">Upload DNA</Button></Link>
         <Link href="/parents"><Button color="primary" variant="text">Parents & Child</Button></Link>
+        <Link href="/lookup"><Button color="primary" variant="text">Gene Lookup</Button></Link>
+        <Link href="/traits"><Button color="primary" variant="text">GWAS Traits</Button></Link>
+        <Link href="/privacy"><Button color="primary" variant="text">Privacy</Button></Link>
       </Toolbar>
     </AppBar>
   );

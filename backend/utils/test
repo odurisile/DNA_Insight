@@ -1,0 +1,35 @@
+from ancestry_inference.reference import load_reference_metadata
+from ancestry_inference.plink import load_fam_sample_ids
+from ancestry_inference.pca import load_pcs, attach_labels_to_reference_pcs, build_training_data, summarize_label_counts
+samples, sample_to_cont = load_reference_metadata("../nih/igsr_samples.tsv")
+
+print(len(samples))
+print(samples[:3])
+print(sample_to_cont.get("HG00096"))
+
+
+metadata_samples, sample_to_cont = load_reference_metadata("../nih/igsr_samples.tsv")
+
+genotype_sample_ids = load_fam_sample_ids("../nih/chr22_ref.fam")
+
+metadata_ids = set(s["sample_id"] for s in metadata_samples)
+geno_ids = set(genotype_sample_ids)
+
+print("metadata:", len(metadata_ids))
+print("genotypes:", len(geno_ids))
+print("overlap:", len(metadata_ids & geno_ids))
+print("missing in metadata:", len(geno_ids - metadata_ids))
+print("missing in genotypes:", len(metadata_ids - geno_ids))
+
+
+metadata_samples, sample_to_cont = load_reference_metadata("../nih/igsr_samples.tsv")
+reference_pcs = load_pcs("../nih/chr22_pca.eigenvec", pcs=20)
+
+labeled_pcs = attach_labels_to_reference_pcs(reference_pcs, sample_to_cont)
+X, y, sample_ids = build_training_data(labeled_pcs)
+
+print(len(reference_pcs))
+print(len(labeled_pcs))
+print(len(X), len(y), len(sample_ids))
+print(len(X[0]))
+print(summarize_label_counts(y))

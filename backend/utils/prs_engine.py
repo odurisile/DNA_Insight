@@ -180,6 +180,76 @@ def compute_prs(genome: dict):
     return results
 
 
+def _fetch_all_rows_for_genome(genome: dict) -> list[tuple]:
+    rsids = list(genome.keys())
+    if not rsids:
+        return []
+
+    conn = sqlite3.connect(str(DB_PATH))
+    cur = conn.cursor()
+    rows = []
+    chunk_size = 900
+
+    for i in range(0, len(rsids), chunk_size):
+        chunk = rsids[i:i + chunk_size]
+        placeholders = ",".join(["?"] * len(chunk))
+        query = f"""
+            SELECT rsid, trait, effect_allele, beta
+            FROM gwas_snps
+            WHERE rsid IN ({placeholders})
+        """
+        cur.execute(query, chunk)
+        rows.extend(cur.fetchall())
+
+    conn.close()
+    return rows
+
+
+def compute_all_trait_prs(genome: dict, min_snps: int = 1):
+    rows = _fetch_all_rows_for_genome(genome)
+    if not rows:
+        return []
+
+    grouped = {}
+    for rsid, trait, effect_allele, beta in rows:
+        grouped.setdefault(trait, []).append((rsid, trait, effect_allele, beta))
+
+    results = []
+    for trait, trait_rows in grouped.items():
+        deduped_rows = _deduplicate_rows(trait_rows)
+        score = 0.0
+        contributing_snps = 0
+
+        for rsid, _trait, effect_allele, beta in deduped_rows:
+            genotype = genome.get(rsid, {}).get("genotype")
+            dosage = allele_dosage(genotype, effect_allele)
+            if dosage == 0:
+                continue
+
+            score += float(beta) * dosage
+            contributing_snps += 1
+
+        if contributing_snps < min_snps:
+            continue
+
+        scaled_score = score / max(1, math.sqrt(contributing_snps))
+        z = scaled_score
+        percentile = 0.5 * (1 + math.erf(z / math.sqrt(2)))
+
+        results.append(
+            {
+                "trait": trait,
+                "raw_score": score,
+                "scaled_score": scaled_score,
+                "z": z,
+                "percentile": percentile * 100,
+                "snps_used": contributing_snps,
+            }
+        )
+
+    return sorted(results, key=lambda item: (item["snps_used"], abs(item["z"])), reverse=True)
+
+
 def inspect_matching_traits(genome: dict, output_trait: str) -> list[str]:
     """
     Debug helper: show real DB trait strings that matched a grouped output trait.

@@ -244,6 +244,147 @@ def predict_folate(genome):
 
 
 # ---------------------------------------------------------
+#  Vitamin D proxy panel
+# ---------------------------------------------------------
+def predict_vitamin_d(genome):
+    """
+    Uses common vitamin D-associated markers as a simple proxy panel.
+    Lower score leans toward reduced circulating vitamin D.
+    """
+    score = 0
+    markers = 0
+
+    if "rs2282679" in genome:  # GC
+        score -= dosage(genome["rs2282679"]["genotype"], "G") * 1.2
+        markers += 1
+    if "rs12785878" in genome:  # DHCR7/NADSYN1
+        score -= dosage(genome["rs12785878"]["genotype"], "G") * 1.0
+        markers += 1
+    if "rs10741657" in genome:  # CYP2R1
+        score -= dosage(genome["rs10741657"]["genotype"], "A") * 0.9
+        markers += 1
+
+    if markers == 0:
+        return "Unknown"
+    if score <= -2.5:
+        return "Lower vitamin D tendency"
+    if score <= -1.0:
+        return "Moderately lower vitamin D tendency"
+    return "Typical vitamin D tendency"
+
+
+# ---------------------------------------------------------
+#  Sleep chronotype proxy panel
+# ---------------------------------------------------------
+def predict_sleep_chronotype(genome):
+    """
+    Simple morning/evening tendency model using common chronotype markers.
+    """
+    score = 0
+    markers = 0
+
+    if "rs12927162" in genome:  # RGS16
+        score += dosage(genome["rs12927162"]["genotype"], "T") * 1.0
+        markers += 1
+    if "rs228697" in genome:  # PER3
+        score += dosage(genome["rs228697"]["genotype"], "G") * 0.9
+        markers += 1
+    if "rs139315125" in genome:  # ASB1-associated chronotype signal
+        score -= dosage(genome["rs139315125"]["genotype"], "A") * 1.0
+        markers += 1
+
+    if markers == 0:
+        return "Unknown"
+    if score >= 1.5:
+        return "Morning leaning"
+    if score <= -1.0:
+        return "Evening leaning"
+    return "Intermediate chronotype"
+
+
+# ---------------------------------------------------------
+#  Pain sensitivity proxy panel
+# ---------------------------------------------------------
+def predict_pain_sensitivity(genome):
+    """
+    Heuristic panel based on COMT / OPRM1 / SCN9A-linked sensitivity markers.
+    """
+    score = 0
+    markers = 0
+
+    if "rs4680" in genome:  # COMT Val158Met
+        score += dosage(genome["rs4680"]["genotype"], "A") * 1.1
+        markers += 1
+    if "rs1799971" in genome:  # OPRM1 A118G
+        score += dosage(genome["rs1799971"]["genotype"], "G") * 0.8
+        markers += 1
+    if "rs6746030" in genome:  # SCN9A
+        score += dosage(genome["rs6746030"]["genotype"], "A") * 0.9
+        markers += 1
+
+    if markers == 0:
+        return "Unknown"
+    if score >= 2.0:
+        return "Higher pain sensitivity"
+    if score >= 0.8:
+        return "Moderate pain sensitivity"
+    return "Typical pain sensitivity"
+
+
+# ---------------------------------------------------------
+#  Endurance proxy panel
+# ---------------------------------------------------------
+def predict_endurance(genome):
+    """
+    Lightweight endurance tendency based on common performance-linked SNPs.
+    """
+    score = 0
+    markers = 0
+
+    if "rs1815739" in genome:  # ACTN3
+        score += dosage(genome["rs1815739"]["genotype"], "T") * 1.1
+        markers += 1
+    if "rs8192678" in genome:  # PPARGC1A
+        score += dosage(genome["rs8192678"]["genotype"], "A") * 0.9
+        markers += 1
+    if "rs4253778" in genome:  # PPARA
+        score += dosage(genome["rs4253778"]["genotype"], "G") * 0.8
+        markers += 1
+
+    if markers == 0:
+        return "Unknown"
+    if score >= 2.0:
+        return "Endurance leaning"
+    if score >= 0.8:
+        return "Balanced endurance profile"
+    return "Power leaning"
+
+
+# ---------------------------------------------------------
+#  Bitter taste proxy panel
+# ---------------------------------------------------------
+def predict_bitter_taste(genome):
+    """
+    TAS2R38 common tasting haplotype proxy.
+    """
+    score = 0
+    markers = 0
+
+    for rsid in ["rs713598", "rs1726866", "rs10246939"]:
+        if rsid in genome:
+            score += dosage(genome[rsid]["genotype"], "C")
+            markers += 1
+
+    if markers == 0:
+        return "Unknown"
+    if score >= 4:
+        return "Strong bitter taster"
+    if score >= 2:
+        return "Moderate bitter taster"
+    return "Lower bitter sensitivity"
+
+
+# ---------------------------------------------------------
 #  Master Trait Engine
 # ---------------------------------------------------------
 def predict_traits(genome):
@@ -275,6 +416,11 @@ def predict_traits(genome):
     alcohol_flush = predict_alcohol_flush(genome)
     nicotine = predict_nicotine(genome)
     folate = predict_folate(genome)
+    vitamin_d = predict_vitamin_d(genome)
+    sleep_chronotype = predict_sleep_chronotype(genome)
+    pain_sensitivity = predict_pain_sensitivity(genome)
+    endurance = predict_endurance(genome)
+    bitter_taste = predict_bitter_taste(genome)
 
     # APOE
     apoe = compute_apoe_genotype(genome)
@@ -293,5 +439,10 @@ def predict_traits(genome):
         "alcohol_flush": alcohol_flush,
         "nicotine_dependence": nicotine,
         "folate_metabolism": folate,
+        "vitamin_d": vitamin_d,
+        "sleep_chronotype": sleep_chronotype,
+        "pain_sensitivity": pain_sensitivity,
+        "endurance": endurance,
+        "bitter_taste": bitter_taste,
         "apoe_genotype": apoe,
     }

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Typography, Card, CardContent, Grid, Stack, Chip, LinearProgress, Box, Switch, TextField, FormControlLabel, Button } from '@mui/material';
+import { Typography, Card, CardContent, Grid, Stack, Chip, LinearProgress, Box, Switch, TextField, FormControlLabel, Button, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import Link from "next/link";
 import ChildAvatar from '@/components/ChildAvatar';
 import HeightPGSCard from "@/components/HeightPGSCard";
@@ -150,6 +150,13 @@ export default function ChildResults() {
   const parentEyeB = parentB?.key_genotypes?.rs12913832;
   const parentKeySnpsA = debugMode ? editableSnpsA : (parentA?.key_snps || {});
   const parentKeySnpsB = debugMode ? editableSnpsB : (parentB?.key_snps || {});
+
+  const normalizeTraitValue = (value) => {
+    if (!value) return "N/A";
+    if (typeof value === "string") return value;
+    if (typeof value === "object" && value.result) return value.result;
+    return "N/A";
+  };
 
   // Updates one parent SNP field in the debug editor.
   const updateSnp = (parent, trait, snp, value) => {
@@ -752,7 +759,7 @@ export default function ChildResults() {
       // HERC2 baseline (additive, not a gate): AA > AG > GG
       HERC2_rs12913832: { AA: 5.0, AG: 2.5, GG: -4.0 },
       // Other loci modulate after HERC2; non-zero to avoid collapsing to a constant
-      OCA2_rs1800407: { AA: 2.0, AG: 1.0, GG: 0 },
+      OCA2_rs1800407: { CC: 2.0, CT: 1.0, TT: 0 },
       TYR_rs1126809: { AA: 1.0, AG: 0.6, GG: 0 },
       TYRP1_rs1408799: { AA: 0.8, AG: 0.4, GG: 0 },
       IRF4_rs12203592: { CC: 0.8, CT: 0.4, TT: 0 },
@@ -785,59 +792,24 @@ export default function ChildResults() {
     };
 
     const cells = [];
-    let minScore = Infinity;
-    let maxScore = -Infinity;
     displayHapA.forEach((ha) => {
       displayHapB.forEach((hb) => {
         const { score, hercGenotype } = scorePair(ha, hb);
         const roundedScore = parseFloat(score.toFixed(2)); // ensure identical values map to identical colors
-        minScore = Math.min(minScore, roundedScore);
-        maxScore = Math.max(maxScore, roundedScore);
         cells.push({ ha, hb, score: roundedScore, hercGenotype });
       });
     });
 
+    const fixedMinScore = -5.2;
+    const fixedMaxScore = 5.0;
+
     // Converts eye score into display colors/labels for the heatmap cell.
     const shadeEye = (score) => {
-      const denom = maxScore === minScore ? 1 : (maxScore - minScore);
-      const tLinear = Math.max(0, Math.min(1, (score - minScore) / denom));
+      const denom = fixedMaxScore - fixedMinScore;
+      const tLinear = Math.max(0, Math.min(1, (score - fixedMinScore) / denom));
       const t = Math.pow(tLinear, 1.6); // nonlinear: low melanin drops faster
       return sampleGradient(gradientStops, t); // higher t -> browner
     };
-
-    // Debug: show relative scores for HERC2 genotypes holding others neutral
-    if (typeof window !== "undefined" && !window.__eyeHeatmapDebugged) {
-      window.__eyeHeatmapDebugged = true;
-      const baseGenos = {
-        HERC2_rs12913832: "GG",
-        OCA2_rs1800407: "GG",
-        SLC45A2_rs16891982: "GG",
-        TYR_rs1126809: "GG",
-        IRF4_rs12203592: "CC",
-        TYRP1_rs1408799: "GG",
-      };
-      // Explicit fallback scoring branch when HERC2 genotype is directly available.
-      const computeExplicitScore = (hercGeno) => {
-        let s = 0;
-        s += genoEffect.HERC2_rs12913832[hercGeno];
-        s += aBiasByHerc2[hercGeno] || 0;
-        s += genoEffect.OCA2_rs1800407[baseGenos.OCA2_rs1800407];
-        s += genoEffect.SLC45A2_rs16891982[baseGenos.SLC45A2_rs16891982];
-        s += genoEffect.TYR_rs1126809[baseGenos.TYR_rs1126809];
-        s += genoEffect.IRF4_rs12203592[baseGenos.IRF4_rs12203592];
-        s += genoEffect.TYRP1_rs1408799[baseGenos.TYRP1_rs1408799];
-        return s;
-      };
-      const testScores = {
-        AA: computeExplicitScore("AA"),
-        AG: computeExplicitScore("AG"),
-        GG: computeExplicitScore("GG"),
-      };
-      if (!(testScores.AA > testScores.AG && testScores.AG > testScores.GG)) {
-        throw new Error(`Eye heatmap HERC2 sanity check failed: ${JSON.stringify(testScores)}`);
-      }
-      console.log("Eye heatmap HERC2 sample scores (AA > AG > GG):", testScores);
-    }
 
     return (
       <Card className="section-card" sx={{ mb:3 }}>
@@ -1312,7 +1284,7 @@ export default function ChildResults() {
     { key: "eye_color", label: "Eye color", value: childTraits.eye_color?.result || childTraits.eye_color },
     { key: "hair_color", label: "Hair color", value: childTraits.hair_color?.result || childTraits.hair_color },
     { key: "freckling", label: "Freckling", value: childTraits.freckling },
-    { key: "tanning_response", label: "Tanning response", value: childTraits.tanning_response },,
+    { key: "tanning_response", label: "Tanning response", value: childTraits.tanning_response },
     { key: "lactose_tolerance", label: "Lactose tolerance", value: childTraits.lactose_tolerance },
     { key: "caffeine_metabolism", label: "Caffeine metabolism", value: childTraits.caffeine_metabolism },
     { key: "muscle_performance", label: "Muscle performance", value: childTraits.muscle_performance },
@@ -1320,6 +1292,73 @@ export default function ChildResults() {
     { key: "nicotine_dependence", label: "Nicotine dependence", value: childTraits.nicotine_dependence },
     { key: "folate_metabolism", label: "Folate metabolism", value: childTraits.folate_metabolism },
   ].filter(t => t.value);
+
+  const comparisonRows = [
+    {
+      label: "Eye color",
+      parentA: normalizeTraitValue(parentA?.traits?.eye_color),
+      parentB: normalizeTraitValue(parentB?.traits?.eye_color),
+      child: normalizeTraitValue(childTraits.eye_color),
+    },
+    {
+      label: "Hair color",
+      parentA: normalizeTraitValue(parentA?.traits?.hair_color),
+      parentB: normalizeTraitValue(parentB?.traits?.hair_color),
+      child: normalizeTraitValue(childTraits.hair_color),
+    },
+    {
+      label: "Skin tone",
+      parentA: normalizeTraitValue(parentA?.traits?.skin_color),
+      parentB: normalizeTraitValue(parentB?.traits?.skin_color),
+      child: normalizeTraitValue(childTraits.skin_color),
+    },
+    {
+      label: "Freckling",
+      parentA: normalizeTraitValue(parentA?.traits?.freckling),
+      parentB: normalizeTraitValue(parentB?.traits?.freckling),
+      child: normalizeTraitValue(childTraits.freckling),
+    },
+    {
+      label: "Tanning response",
+      parentA: normalizeTraitValue(parentA?.traits?.tanning_response),
+      parentB: normalizeTraitValue(parentB?.traits?.tanning_response),
+      child: normalizeTraitValue(childTraits.tanning_response),
+    },
+    {
+      label: "Muscle performance",
+      parentA: normalizeTraitValue(parentA?.traits?.muscle_performance),
+      parentB: normalizeTraitValue(parentB?.traits?.muscle_performance),
+      child: normalizeTraitValue(childTraits.muscle_performance),
+    },
+    {
+      label: "Caffeine metabolism",
+      parentA: normalizeTraitValue(parentA?.traits?.caffeine_metabolism),
+      parentB: normalizeTraitValue(parentB?.traits?.caffeine_metabolism),
+      child: normalizeTraitValue(childTraits.caffeine_metabolism),
+    },
+  ];
+
+  const riskComparisonRows = [
+    "Alzheimers",
+    "Diabetes",
+    "HeartDisease",
+    "Obesity",
+    "Celiac",
+    "Hypertension",
+    "Hemochromatosis",
+  ].map((riskKey) => ({
+    label: riskKey,
+    parentA: parentA?.health?.risk_summary?.[riskKey] || "N/A",
+    parentB: parentB?.health?.risk_summary?.[riskKey] || "N/A",
+  }));
+
+  const keySnpComparisonRows = [
+    { rsid: "rs12913832", gene: "HERC2/OCA2", parentA: parentA?.key_snps?.eye?.rs12913832 || "N/A", parentB: parentB?.key_snps?.eye?.rs12913832 || "N/A" },
+    { rsid: "rs1805007", gene: "MC1R", parentA: parentA?.key_snps?.hair?.rs1805007 || "N/A", parentB: parentB?.key_snps?.hair?.rs1805007 || "N/A" },
+    { rsid: "rs1805008", gene: "MC1R", parentA: parentA?.key_snps?.hair?.rs1805008 || "N/A", parentB: parentB?.key_snps?.hair?.rs1805008 || "N/A" },
+    { rsid: "rs1426654", gene: "SLC24A5", parentA: parentA?.key_snps?.skin?.rs1426654 || "N/A", parentB: parentB?.key_snps?.skin?.rs1426654 || "N/A" },
+    { rsid: "rs16891982", gene: "SLC45A2", parentA: parentA?.key_snps?.skin?.rs16891982 || "N/A", parentB: parentB?.key_snps?.skin?.rs16891982 || "N/A" },
+  ];
 
   // Renders probability chips for a trait's distribution object.
   const renderDistChips = (traitKey) => {
@@ -1359,12 +1398,12 @@ export default function ChildResults() {
             </Typography>
             {childHeightMale?.predicted_height_cm_mean !== undefined && (
               <Typography variant='body1'>
-                ??? Male projected height: {childHeightMale.predicted_height_cm_mean.toFixed(1)} cm (90% range {childHeightMale.predicted_height_cm_ci90.low.toFixed(1)}??"{childHeightMale.predicted_height_cm_ci90.high.toFixed(1)} cm), percentile {childHeightMale.percentile.toFixed(1)}%.
+                Male projected height: {childHeightMale.predicted_height_cm_mean.toFixed(1)} cm (90% range {childHeightMale.predicted_height_cm_ci90.low.toFixed(1)} to {childHeightMale.predicted_height_cm_ci90.high.toFixed(1)} cm), percentile {childHeightMale.percentile.toFixed(1)}%.
               </Typography>
             )}
             {childHeightFemale?.predicted_height_cm_mean !== undefined && (
               <Typography variant='body1'>
-                ??? Female projected height: {childHeightFemale.predicted_height_cm_mean.toFixed(1)} cm (90% range {childHeightFemale.predicted_height_cm_ci90.low.toFixed(1)}??"{childHeightFemale.predicted_height_cm_ci90.high.toFixed(1)} cm), percentile {childHeightFemale.percentile.toFixed(1)}%.
+                Female projected height: {childHeightFemale.predicted_height_cm_mean.toFixed(1)} cm (90% range {childHeightFemale.predicted_height_cm_ci90.low.toFixed(1)} to {childHeightFemale.predicted_height_cm_ci90.high.toFixed(1)} cm), percentile {childHeightFemale.percentile.toFixed(1)}%.
               </Typography>
             )}
             {child?.child_genome && (
@@ -1397,13 +1436,89 @@ export default function ChildResults() {
         </CardContent>
       </Card>
 
+      <Card className="section-card" sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant='h6' gutterBottom>Side-by-side comparison</Typography>
+          <Typography variant='body2' color="text.secondary" sx={{ mb: 2 }}>
+            Compare parent trait calls, risk summaries, and a small set of key SNPs in one place.
+          </Typography>
+
+          <Typography variant='subtitle1' sx={{ mb: 1 }}>Trait comparison</Typography>
+          <Table size="small" sx={{ mb: 3 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Signal</TableCell>
+                <TableCell>Parent A</TableCell>
+                <TableCell>Parent B</TableCell>
+                <TableCell>Predicted child</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {comparisonRows.map((row) => (
+                <TableRow key={row.label}>
+                  <TableCell>{row.label}</TableCell>
+                  <TableCell>{row.parentA}</TableCell>
+                  <TableCell>{row.parentB}</TableCell>
+                  <TableCell>{row.child}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <Typography variant='subtitle1' sx={{ mb: 1 }}>Risk summary comparison</Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Risk</TableCell>
+                    <TableCell>Parent A</TableCell>
+                    <TableCell>Parent B</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {riskComparisonRows.map((row) => (
+                    <TableRow key={row.label}>
+                      <TableCell>{row.label}</TableCell>
+                      <TableCell>{row.parentA}</TableCell>
+                      <TableCell>{row.parentB}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Typography variant='subtitle1' sx={{ mb: 1 }}>Key SNP comparison</Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Marker</TableCell>
+                    <TableCell>Parent A</TableCell>
+                    <TableCell>Parent B</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {keySnpComparisonRows.map((row) => (
+                    <TableRow key={row.rsid}>
+                      <TableCell>{row.gene} ({row.rsid})</TableCell>
+                      <TableCell>{row.parentA}</TableCell>
+                      <TableCell>{row.parentB}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
       <Card className="section-card" sx={{ mb:3 }}>
         <CardContent>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
               <Typography variant='h6'>Height Polygenic Score</Typography>
               <Typography variant='body2' color="text.secondary">
-                Compute a height PGS from a single raw DNA file and view the bell-curve card. Below shows the child’s simulated height PGS if available.
+                Compute a height PGS from a single raw DNA file and view the bell-curve card. Below shows the child's simulated height PGS if available.
               </Typography>
             </Box>
             {/* Height tab link removed */}

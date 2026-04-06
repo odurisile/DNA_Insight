@@ -1,71 +1,125 @@
 "use client";
-import { useState } from 'react';
-import { uploadParentsDNA } from '@/lib/api';
-import { Button, Typography, CircularProgress } from '@mui/material';
-import { useRouter } from 'next/navigation';
+
+import Link from "next/link";
+import { useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  CircularProgress,
+  FormControlLabel,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { useRouter } from "next/navigation";
+import { uploadParentsDNA } from "@/lib/api";
 
 export default function ParentsUploadPage() {
   const router = useRouter();
-  const [files, setFiles] = useState({ p1:null, p2:null });
+  const [files, setFiles] = useState({ p1: null, p2: null });
   const [loading, setLoading] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleUpload() {
     if (!files.p1 || !files.p2) return;
 
     setLoading(true);
-    const formData = new FormData();
-    formData.append("file1", files.p1);
-    formData.append("file2", files.p2);
+    setError("");
 
-    const data = await uploadParentsDNA(formData);
-    // Compact payload to avoid quota issues (drop raw genomes)
-    const compact = {
-      parentA: {
-        traits: data.parentA?.traits,
-        health: data.parentA?.health,
-        key_genotypes: data.parentA?.key_genotypes,
-        key_snps: data.parentA?.key_snps
-      },
-      parentB: {
-        traits: data.parentB?.traits,
-        health: data.parentB?.health,
-        key_genotypes: data.parentB?.key_genotypes,
-        key_snps: data.parentB?.key_snps
-      },
-      child: {
-        child_traits: data.child?.child_traits,
-        child_health: data.child?.child_health,
-        child_trait_distribution: data.child?.child_trait_distribution,
-        child_height_pgs: data.child?.child_height_pgs
-      }
-    };
-    sessionStorage.setItem("childData", JSON.stringify(compact));
-    setLoading(false);
-    router.push("/child-results");
+    try {
+      const formData = new FormData();
+      formData.append("file1", files.p1);
+      formData.append("file2", files.p2);
+
+      const data = await uploadParentsDNA(formData);
+      const compact = {
+        parentA: {
+          traits: data.parentA?.traits,
+          health: data.parentA?.health,
+          key_genotypes: data.parentA?.key_genotypes,
+          key_snps: data.parentA?.key_snps,
+        },
+        parentB: {
+          traits: data.parentB?.traits,
+          health: data.parentB?.health,
+          key_genotypes: data.parentB?.key_genotypes,
+          key_snps: data.parentB?.key_snps,
+        },
+        child: {
+          child_traits: data.child?.child_traits,
+          child_health: data.child?.child_health,
+          child_trait_distribution: data.child?.child_trait_distribution,
+          child_height_pgs: data.child?.child_height_pgs,
+        },
+      };
+      sessionStorage.setItem("childData", JSON.stringify(compact));
+      router.push("/child-results");
+    } catch (err) {
+      setError(err.message || "Parent upload failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <div className='container'>
-      <Typography variant='h4' gutterBottom>Upload Parent DNA</Typography>
+    <div className="container">
+      <Card className="section-card">
+        <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Typography variant="h4" gutterBottom>
+            Upload Parent DNA
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            This comparison flow is informational only. It produces probabilistic trait estimates for a simulated child profile and should not be treated as medical or reproductive advice.
+          </Typography>
 
-      <Typography>Parent A</Typography>
-      <input type='file' accept='.txt,.csv'
-        onChange={(e)=>setFiles({...files, p1:e.target.files[0]})}
-      />
+          <Stack spacing={1}>
+            <Typography>Parent A</Typography>
+            <input
+              type="file"
+              accept=".txt,.csv,.tsv"
+              onChange={(e) => {
+                setFiles({ ...files, p1: e.target.files[0] || null });
+                setError("");
+              }}
+            />
+          </Stack>
 
-      <Typography sx={{ mt:2 }}>Parent B</Typography>
-      <input type='file' accept='.txt,.csv'
-        onChange={(e)=>setFiles({...files, p2:e.target.files[0]})}
-      />
+          <Stack spacing={1}>
+            <Typography>Parent B</Typography>
+            <input
+              type="file"
+              accept=".txt,.csv,.tsv"
+              onChange={(e) => {
+                setFiles({ ...files, p2: e.target.files[0] || null });
+                setError("");
+              }}
+            />
+          </Stack>
 
-      <Button 
-        variant='contained' 
-        sx={{ mt:3 }}
-        disabled={!files.p1 || !files.p2 || loading}
-        onClick={handleUpload}
-      >
-        {loading ? <CircularProgress size={24}/> : "Predict Child"}
-      </Button>
+          <FormControlLabel
+            control={<Checkbox checked={consent} onChange={(e) => setConsent(e.target.checked)} />}
+            label="I have permission to analyze both files and understand this feature is a non-medical prediction demo."
+          />
+
+          <Typography variant="body2" color="text.secondary">
+            Review the <Link href="/privacy">privacy policy</Link> and <Link href="/terms">terms</Link> before uploading genetic data.
+          </Typography>
+
+          {error && <Alert severity="error">{error}</Alert>}
+
+          <Button
+            variant="contained"
+            sx={{ mt: 1, alignSelf: "flex-start" }}
+            disabled={!files.p1 || !files.p2 || !consent || loading}
+            onClick={handleUpload}
+          >
+            {loading ? <CircularProgress size={24} /> : "Predict child"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
