@@ -16,8 +16,12 @@ CLINVAR_LOADED_LOGGED = False
 
 # --------------------------------------------------------------
 # Load ClinVar pathogenic variants (compressed database)
-# Structure:
-# { rsid: { "gene": "CFTR", "variant": "F508del", "type": "pathogenic", "inheritance": "recessive" } }
+# NOTE:
+# Raw ClinVar rsID-level matching is not safe enough to call dominant
+# or carrier status on its own because the export does not provide a
+# directly usable inheritance field here and many rsIDs map to multiple
+# submissions/alleles. We keep the data loaded for future evidence views,
+# but only use curated explicit panels for reportable pathogenic calls.
 # --------------------------------------------------------------
 
 CLINVAR_DB = {}
@@ -35,7 +39,8 @@ def load_clinvar():
             with gzip.open(path, "rt") as f:
                 reader = csv.DictReader(f, delimiter="\t")
                 for row in reader:
-                    rsid = row.get("RSID")
+                    rsid_value = row.get("RSID") or row.get("RS# (dbSNP)") or row.get("RS#")
+                    rsid = f"rs{str(rsid_value).strip()}" if rsid_value not in (None, "", "-") else None
                     if not rsid:
                         continue
 
@@ -43,7 +48,7 @@ def load_clinvar():
                         "gene": row.get("GeneSymbol", "Unknown"),
                         "variant": row.get("VariantName", ""),
                         "type": row.get("ClinicalSignificance", "").lower(),
-                        "inheritance": row.get("ModeOfInheritance", "").lower(),
+        "inheritance": row.get("ModeOfInheritance", "").lower(),
                     }
             loaded = True
             if not CLINVAR_LOADED_LOGGED:
@@ -96,7 +101,6 @@ DOMINANT_GENES = {
     "BRCA2": ["rs80359406", "rs80359083"],
     "LDLR": ["rs121908025"],
     "FBN1": ["rs121913626"],
-    "TERT": ["rs2736100"],
     "RET": ["rs79011770"]
 }
 
@@ -113,37 +117,15 @@ def detect_carrier_status(genome):
     }
     """
 
-    load_clinvar()
-
     carriers = []
     dominants = []
 
-    # First: ClinVar pathogenic variants
-    for rsid, info in genome.items():
-        geno = info["genotype"].replace("/", "")
-
-        if rsid in CLINVAR_DB:
-            cinfo = CLINVAR_DB[rsid]
-            if "patho" in cinfo["type"]:
-                if "recess" in cinfo["inheritance"]:
-                    # Carrier if heterozygous
-                    if len(geno) == 2 and geno[0] != geno[1]:
-                        carriers.append({
-                            "gene": cinfo["gene"],
-                            "rsid": rsid,
-                            "variant": cinfo["variant"],
-                            "status": "Carrier (ClinVar)",
-                            "genotype": info.get("genotype")
-                        })
-                else:
-                    # Dominant pathogenic variant
-                    dominants.append({
-                        "gene": cinfo["gene"],
-                        "rsid": rsid,
-                        "variant": cinfo["variant"],
-                        "status": "Pathogenic (Dominant)",
-                        "genotype": info.get("genotype")
-                    })
+    # Raw ClinVar matching is intentionally disabled here until
+    # allele-aware interpretation is implemented. The previous logic
+    # overcalled thousands of false dominant findings by treating any
+    # pathogenic rsID match as if the uploaded genotype contained the
+    # pathogenic allele and by defaulting missing inheritance data to
+    # dominant. Reportable calls below come only from curated panels.
 
     # Additional known panels
     for gene, snps in GENE_PANELS.items():

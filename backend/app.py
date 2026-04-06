@@ -178,7 +178,7 @@ def upload_parents():
         },
     }
 
-    child = predict_child(parentA, parentB)
+    child = predict_child(parentA, parentB, simulations=8)
 
     # Height PGS for the sampled child genome (sex-specific)
     try:

@@ -757,13 +757,13 @@ export default function ChildResults() {
     // Genotype-specific effects (brownness axis; positive = browner, negative = bluer)
     const genoEffect = {
       // HERC2 baseline (additive, not a gate): AA > AG > GG
-      HERC2_rs12913832: { AA: 5.0, AG: 2.5, GG: -4.0 },
+      HERC2_rs12913832: { AA: 4.0, AG: 1.8, GG: -3.2 },
       // Other loci modulate after HERC2; non-zero to avoid collapsing to a constant
       OCA2_rs1800407: { CC: 2.0, CT: 1.0, TT: 0 },
-      TYR_rs1126809: { AA: 1.0, AG: 0.6, GG: 0 },
-      TYRP1_rs1408799: { AA: 0.8, AG: 0.4, GG: 0 },
-      IRF4_rs12203592: { CC: 0.8, CT: 0.4, TT: 0 },
-      SLC45A2_rs16891982: { CC: -1.2, CG: -0.8, GG: 0 }, // dilution/lightening
+      TYR_rs1126809: { AA: .7, AG: 0.35, GG: 0 },
+      TYRP1_rs1408799: { AA: 0.5, AG: 0.25, GG: 0 },
+      IRF4_rs12203592: { CC: 0.5, CT: 0.25, TT: 0 },
+      SLC45A2_rs16891982: { CC: 0.8, CG: 0.4, GG: 0 }, // dilution/lightening
     };
 
     // No extra bias; relying on explicit genotype effects above for ordering

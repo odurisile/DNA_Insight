@@ -2,6 +2,49 @@ import random
 from utils.trait_engine import predict_traits
 from utils.risk_engine import compute_health_risk
 
+TRAIT_RELEVANT_RSIDS = {
+    "rs1129038",
+    "rs11807848",
+    "rs12203592",
+    "rs12785878",
+    "rs12821256",
+    "rs12896399",
+    "rs12913832",
+    "rs12927162",
+    "rs139315125",
+    "rs1426654",
+    "rs16891982",
+    "rs16969968",
+    "rs1726866",
+    "rs1799971",
+    "rs1800407",
+    "rs1801133",
+    "rs1805007",
+    "rs1805008",
+    "rs1805009",
+    "rs1815739",
+    "rs2228479",
+    "rs2282679",
+    "rs228697",
+    "rs3827760",
+    "rs4253778",
+    "rs429358",
+    "rs4648379",
+    "rs4680",
+    "rs4959270",
+    "rs4988235",
+    "rs671",
+    "rs6746030",
+    "rs713598",
+    "rs7412",
+    "rs762551",
+    "rs8192678",
+    "rs885479",
+    "rs10246939",
+    "rs1042602",
+    "rs10741657",
+}
+
 
 # --------------------------------------------------------------
 #  Helper: get allele 1 or allele 2 randomly
@@ -16,6 +59,25 @@ def split_genotype(geno):
     return [g[0], g[1]]
 
 
+def _build_chrom_map(genome, allowed_rsids=None):
+    chrom_map = {}
+
+    for rsid, info in genome.items():
+        if allowed_rsids is not None and rsid not in allowed_rsids:
+            continue
+
+        chrom = info["chrom"]
+        pos = info["pos"]
+        geno = info["genotype"]
+
+        chrom_map.setdefault(chrom, []).append((pos, rsid, geno))
+
+    for snps in chrom_map.values():
+        snps.sort(key=lambda x: x[0])
+
+    return chrom_map
+
+
 # --------------------------------------------------------------
 #  Make a gamete with recombination
 # --------------------------------------------------------------
@@ -24,24 +86,18 @@ def make_gamete(parent_genome):
     Takes a parent's genome and returns a 'gamete':
     one allele per rsID, after recombination.
     """
+    return make_gamete_from_chrom_map(_build_chrom_map(parent_genome))
 
-    chrom_map = {}
-    for rsid, info in parent_genome.items():
-        chrom = info["chrom"]
-        pos = info["pos"]
-        geno = info["genotype"]
 
-        if chrom not in chrom_map:
-            chrom_map[chrom] = []
-
-        chrom_map[chrom].append((pos, rsid, geno))
-
+def make_gamete_from_chrom_map(chrom_map):
     gamete = {}
 
-    # Perform recombination per chromosome
-    for chrom, snps in chrom_map.items():
-        snps.sort(key=lambda x: x[0])
-        num_xo = random.randint(1, 3)
+    for snps in chrom_map.values():
+        if not snps:
+            continue
+
+        max_xo = min(3, len(snps))
+        num_xo = random.randint(1, max_xo)
         crossover_points = sorted(random.sample(range(len(snps)), num_xo))
 
         current_side = random.randint(0, 1)
@@ -114,19 +170,24 @@ def predict_child(parentA_genome, parentB_genome, simulations: int = 64):
     - Monte Carlo over recombinations for trait probability summaries
     """
 
+    parentA_chrom_map = _build_chrom_map(parentA_genome)
+    parentB_chrom_map = _build_chrom_map(parentB_genome)
+    parentA_trait_chrom_map = _build_chrom_map(parentA_genome, allowed_rsids=TRAIT_RELEVANT_RSIDS)
+    parentB_trait_chrom_map = _build_chrom_map(parentB_genome, allowed_rsids=TRAIT_RELEVANT_RSIDS)
+
     # Sample one child for a concrete "example" output
-    gamA = make_gamete(parentA_genome)
-    gamB = make_gamete(parentB_genome)
+    gamA = make_gamete_from_chrom_map(parentA_chrom_map)
+    gamB = make_gamete_from_chrom_map(parentB_chrom_map)
     child_genome = make_child_genome(gamA, gamB, parentA_genome)
     traits = predict_traits(child_genome)
     health = compute_health_risk(child_genome)
 
     # Monte Carlo to approximate distribution across recombination events
     counts = {}
-    sims = max(8, min(simulations, 256))
+    sims = max(8, min(simulations, 32))
     for _ in range(sims):
-        sim_gamA = make_gamete(parentA_genome)
-        sim_gamB = make_gamete(parentB_genome)
+        sim_gamA = make_gamete_from_chrom_map(parentA_trait_chrom_map)
+        sim_gamB = make_gamete_from_chrom_map(parentB_trait_chrom_map)
         sim_child = make_child_genome(sim_gamA, sim_gamB, parentA_genome)
         sim_traits = predict_traits(sim_child)
         summary = _summarize_trait_results(sim_traits)
