@@ -96,7 +96,7 @@ Set `NEXT_PUBLIC_BACKEND_URL` if the frontend should call a non-local backend.
 - Configure GWAS inputs by populating `sources` in `backend/utils/height_catalog/config.json` (GIANT, UKBB, PAGE, MVP, H3Africa, GWAS Catalog).
 
    
-   <img width="431" height="610" alt="image" src="https://github.com/user-attachments/assets/f174cf24-85db-4c90-9165-c690fc3fa22b" />
+   <img width="1478" height="697" alt="image" src="https://github.com/user-attachments/assets/bb58d441-4c2d-4ea9-a589-ab46138ab391"/>
 
    <img width="734" height="649" alt="image" src="https://github.com/user-attachments/assets/a4716275-7d71-43c5-aab3-e29ef06e199e" />
 
