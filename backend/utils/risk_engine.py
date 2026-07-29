@@ -84,6 +84,7 @@ def compute_health_risk(genome):
 
     # 2. ClinVar: carriers + dominant pathogenic mutations
     carriers_info = detect_carrier_status(genome)
+    clinical_findings = carriers_info["clinical_findings"]
     carrier_list = carriers_info["carriers"]
     dominant_list = carriers_info["dominant_variants"]
 
@@ -123,6 +124,7 @@ def compute_health_risk(genome):
     output = {
         "apoe": apoe,
         "prs": prs,
+        "clinical_findings": clinical_findings,
         "carrier_status": carrier_list,
         "dominant_mutations": dominant_list,
         "risk_summary": {

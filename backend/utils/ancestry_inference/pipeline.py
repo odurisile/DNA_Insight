@@ -15,6 +15,7 @@ from .plink import (
     run_command,
 )
 from .reference import load_reference_metadata
+from .torch_model import predict_ancestry_from_pcs_torch
 from .visuals import plot_ancestry_bar, plot_pca_scatter
 
 
@@ -91,6 +92,7 @@ def infer_global_ancestry_from_file(
     method = method or inference.get("method", "admixture_pca")
     proportions = {"AFR": 0.0, "EUR": 0.0, "EAS": 0.0, "SAS": 0.0, "AMR": 0.0}
     closest_populations = []
+    ancestry_embedding = []
 
     if method.startswith("admixture"):
         cache = load_admixture_cache(config["cache"]["admixture_cache"])
@@ -109,6 +111,11 @@ def infer_global_ancestry_from_file(
                 config["cache"]["admixture_cache"],
                 {"k": inference["k"], "user_proportions": proportions},
             )
+    elif method.startswith("torch"):
+        torch_model_path = inference.get("torch_model_path", "nih/ancestry_torch_model.pt")
+        torch_result = predict_ancestry_from_pcs_torch(user_row.get("pcs", []), model_path=torch_model_path)
+        proportions.update(torch_result["probabilities"])
+        ancestry_embedding = torch_result.get("embedding", [])
 
     if method.endswith("pca"):
         reference_cache = load_cached_reference_pcs(config["cache"]["pca_cache"])
@@ -135,8 +142,9 @@ def infer_global_ancestry_from_file(
         "global_ancestry": proportions,
         "closest_populations": closest_populations,
         "pcs": user_row.get("pcs", []),
+        "embedding": ancestry_embedding,
         "confidence": confidence,
-        "method": "ADMIXTURE+PCA" if method.startswith("admixture") else "PCA",
+        "method": "ADMIXTURE+PCA" if method.startswith("admixture") else "TORCH+PCA",
         "reference": ref_cfg.get("name", "1000G"),
         "build": build,
     }

@@ -54,6 +54,15 @@ GENE_BLOCKS = [
         ],
     },
     {
+        "title": "Blood Type (ABO + RhD)",
+        "description": "ABO and RhD tagging markers used for conservative blood type inference.",
+        "snps": [
+            {"rsid": "rs8176719", "gene": "ABO"},
+            {"rsid": "rs8176746", "gene": "ABO"},
+            {"rsid": "rs590787", "gene": "RHD"},
+        ],
+    },
+    {
         "title": "Performance & Cardiometabolic",
         "description": "Muscle fiber bias and hypertension-linked markers.",
         "snps": [

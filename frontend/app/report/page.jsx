@@ -25,6 +25,7 @@ import ColorLensIcon from "@mui/icons-material/ColorLens";
 import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import ScienceIcon from "@mui/icons-material/Science";
 import { generatePDF } from "@/lib/api";
+import GeneInfoTooltip from "@/components/GeneInfoTooltip";
 
 const EMPTY_VALUE = "N/A";
 
@@ -70,6 +71,7 @@ export default function ReportPage() {
   const health = data?.health || data?.risk;
   const traits = data?.traits || {};
   const genotypePanel = data?.genotype_panel || [];
+  const clinvarFindings = health?.clinical_findings || null;
 
   const prsRows = useMemo(() => {
     if (!health?.prs) return [];
@@ -83,8 +85,22 @@ export default function ReportPage() {
   }, [health]);
 
   const variantRows = useMemo(() => {
-    const dominants = (health?.dominant_mutations || []).map((variant) => ({ ...variant, category: "Dominant" }));
-    const carriers = (health?.carrier_status || []).map((variant) => ({ ...variant, category: "Carrier" }));
+    const structured = health?.clinical_findings?.reportable_findings;
+    if (structured && structured.length > 0) {
+      return structured;
+    }
+    const dominants = (health?.dominant_mutations || []).map((variant) => ({
+      ...variant,
+      finding_type: "dominant",
+      report_label: "Dominant finding",
+      clinical_significance: variant.clinical_significance || EMPTY_VALUE,
+    }));
+    const carriers = (health?.carrier_status || []).map((variant) => ({
+      ...variant,
+      finding_type: "carrier",
+      report_label: "Carrier finding",
+      clinical_significance: variant.clinical_significance || EMPTY_VALUE,
+    }));
     return [...dominants, ...carriers];
   }, [health]);
 
@@ -147,11 +163,21 @@ export default function ReportPage() {
     const query = search.trim().toLowerCase();
     if (!query) return variantRows;
     return variantRows.filter((variant) =>
-      [variant.gene, variant.rsid, variant.variant, variant.genotype, variant.category]
+      [variant.gene, variant.rsid, variant.variant, variant.genotype, variant.report_label, variant.clinical_significance]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [search, variantRows]);
+
+  const suppressedClinvarRows = useMemo(() => {
+    const summary = clinvarFindings?.suppressed_summary || {};
+    return Object.entries(summary)
+      .filter(([, count]) => Number(count) > 0)
+      .map(([reason, count]) => ({
+        reason: reason.replace(/_/g, " "),
+        count,
+      }));
+  }, [clinvarFindings]);
 
   if (!data) return <div className="container">No report data found.</div>;
 
@@ -186,6 +212,7 @@ export default function ReportPage() {
     { label: "Pain sensitivity", data: traits.pain_sensitivity },
     { label: "Endurance", data: traits.endurance },
     { label: "Bitter taste", data: traits.bitter_taste },
+    { label: "Blood type (ABO + RhD)", data: traits.blood_type },
   ]
     .map((item) => ({
       ...item,
@@ -365,39 +392,74 @@ export default function ReportPage() {
             <CardContent>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
                 <HealthAndSafetyIcon color="primary" />
-                <Typography variant="h6">ClinVar and carrier calls</Typography>
+                <Typography variant="h6">ClinVar findings</Typography>
               </Stack>
+              {clinvarFindings?.default_report_policy && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  {clinvarFindings.default_report_policy}
+                </Typography>
+              )}
               {filteredVariantRows.length === 0 ? (
-                <Typography color="text.secondary">No carrier or dominant variants detected.</Typography>
+                <Stack spacing={1}>
+                  <Typography color="text.secondary">No reportable ClinVar germline findings detected.</Typography>
+                  {suppressedClinvarRows.length > 0 && (
+                    <div className="chip-row">
+                      {suppressedClinvarRows.map((item) => (
+                        <Chip
+                          key={item.reason}
+                          label={`${item.reason}: ${item.count}`}
+                          size="small"
+                          variant="outlined"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Stack>
               ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Gene</TableCell>
-                      <TableCell>RSID</TableCell>
-                      <TableCell>Variant</TableCell>
-                      <TableCell>Genotype</TableCell>
-                      <TableCell>Category</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredVariantRows.map((variant) => (
-                      <TableRow key={`${variant.rsid}-${variant.gene}`}>
-                        <TableCell>{variant.gene}</TableCell>
-                        <TableCell>{variant.rsid}</TableCell>
-                        <TableCell>{variant.variant}</TableCell>
-                        <TableCell>{variant.genotype || EMPTY_VALUE}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={variant.category}
-                            color={variant.category === "Dominant" ? "secondary" : "default"}
-                            size="small"
-                          />
-                        </TableCell>
+                <Stack spacing={1.5}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Gene</TableCell>
+                        <TableCell>RSID</TableCell>
+                        <TableCell>Variant</TableCell>
+                        <TableCell>Genotype</TableCell>
+                        <TableCell>Significance</TableCell>
+                        <TableCell>Finding</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {filteredVariantRows.map((variant) => (
+                        <TableRow key={`${variant.rsid}-${variant.gene}-${variant.matched_allele || "na"}-${variant.finding_type || "na"}`}>
+                          <TableCell>{variant.gene}</TableCell>
+                          <TableCell>{variant.rsid}</TableCell>
+                          <TableCell>{variant.variant}</TableCell>
+                          <TableCell>{variant.genotype || EMPTY_VALUE}</TableCell>
+                          <TableCell>{variant.clinical_significance || EMPTY_VALUE}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={variant.report_label || EMPTY_VALUE}
+                              color={variant.finding_type === "dominant" ? "secondary" : "default"}
+                              size="small"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {suppressedClinvarRows.length > 0 && (
+                    <div className="chip-row">
+                      {suppressedClinvarRows.map((item) => (
+                        <Chip
+                          key={item.reason}
+                          label={`Suppressed ${item.reason}: ${item.count}`}
+                          size="small"
+                          variant="outlined"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Stack>
               )}
             </CardContent>
           </Card>
@@ -435,9 +497,18 @@ export default function ReportPage() {
                 <Typography variant="body2" color="text.secondary">{block.description}</Typography>
                 <div className="chip-row">
                   {block.snps.map((snp) => (
-                    <Tooltip key={snp.rsid} title={snp.gene || "Variant"}>
-                      <Chip label={`${snp.gene || snp.rsid}: ${snp.genotype}`} />
-                    </Tooltip>
+                    <Chip
+                      key={snp.rsid}
+                      label={
+                        <span>
+                          <GeneInfoTooltip
+                            gene={snp.gene || "Variant"}
+                            snps={block.snps.filter((item) => item.gene === snp.gene).map((item) => item.rsid)}
+                          />
+                          {`: ${snp.genotype}`}
+                        </span>
+                      }
+                    />
                   ))}
                 </div>
               </div>

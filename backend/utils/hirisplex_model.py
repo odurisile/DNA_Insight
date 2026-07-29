@@ -251,10 +251,10 @@ def predict_skin(genome):
     categories = {
         "Very Light": 0.15,
         "Light": 0.30,
-        "Medium": 0.45,
-        "Brown": 0.60,
-        "Dark": 0.75,
-        "Very Dark": 0.90,
+        "Medium": 0.55,
+        "light Brown": 0.65,
+        "Brown": 0.97,
+        "Very Dark": 0.99,
     }
 
     result = min(categories, key=lambda k: abs(categories[k] - melanin_index))

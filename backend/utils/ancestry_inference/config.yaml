@@ -44,6 +44,7 @@ inference:
   k: 5
   pcs: 20
   confidence_floor: 0.5
+  torch_model_path: nih/ancestry_torch_model.pt
 cache:
   pca_cache: data/reference/1000g/cache/pca_reference.npz
   admixture_cache: data/reference/1000g/cache/admixture_reference.json

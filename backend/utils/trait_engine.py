@@ -11,6 +11,12 @@ def dosage(genotype: str, allele: str) -> int:
     return g.count(allele.upper())
 
 
+def normalized_genotype(genotype: str) -> str:
+    if not genotype:
+        return ""
+    return genotype.replace("/", "").upper()
+
+
 # ---------------------------------------------------------
 #  Freckling Model (simplified additive polygenic model)
 # ---------------------------------------------------------
@@ -385,6 +391,79 @@ def predict_bitter_taste(genome):
 
 
 # ---------------------------------------------------------
+#  ABO and Rh Blood Type
+# ---------------------------------------------------------
+def predict_blood_type(genome):
+    """
+    Conservative ABO and RhD blood type inference from consumer-genotype markers.
+
+    rs8176719:
+    - D allele tags the common O1 deletion
+    - I allele tags a non-O allele
+
+    rs8176746:
+    - T allele tags the common B-associated haplotype
+    - G allele is compatible with A/O contexts
+
+    rs590787:
+    - C/C tags the common RHD deletion associated with Rh-negative status
+    - A or T indicates likely Rh-positive status (depending on reported strand)
+
+    RhD inference from a single tag is not definitive, especially outside
+    populations where the common RHD deletion explains most Rh-negative cases.
+    """
+    deletion_marker = genome.get("rs8176719", {}).get("genotype")
+    b_marker = genome.get("rs8176746", {}).get("genotype")
+
+    deletion_genotype = normalized_genotype(deletion_marker)
+    b_genotype = normalized_genotype(b_marker)
+
+    if not deletion_genotype or not b_genotype:
+        return "Unknown"
+
+    deletion_alleles = [allele for allele in deletion_genotype if allele in {"D", "I"}]
+    b_alleles = [allele for allele in b_genotype if allele in {"G", "T"}]
+
+    if len(deletion_alleles) != 2 or len(b_alleles) != 2:
+        return "Unknown"
+
+    o_count = deletion_alleles.count("D")
+    b_count = b_alleles.count("T")
+
+    abo_type = None
+    if o_count == 2:
+        abo_type = "O"
+    elif o_count == 1:
+        if b_count == 0:
+            abo_type = "A"
+        elif b_count == 1:
+            abo_type = "B"
+    else:
+        # No O-tagged deletion allele present.
+        if b_count == 0:
+            abo_type = "A"
+        elif b_count == 1:
+            abo_type = "AB"
+        elif b_count == 2:
+            abo_type = "B"
+
+    if not abo_type:
+        return "Unknown"
+
+    rh_genotype = normalized_genotype(
+        genome.get("rs590787", {}).get("genotype")
+    )
+    rh_alleles = [allele for allele in rh_genotype if allele in {"A", "C", "G", "T"}]
+
+    if len(rh_alleles) != 2:
+        return f"Likely type {abo_type} (Rh unknown)"
+
+    # Accept both strand orientations: C/C (or complementary G/G) tags Rh-.
+    rh_status = "-" if set(rh_alleles) in ({"C"}, {"G"}) else "+"
+    return f"Likely type {abo_type}{rh_status}"
+
+
+# ---------------------------------------------------------
 #  Master Trait Engine
 # ---------------------------------------------------------
 def predict_traits(genome):
@@ -421,6 +500,7 @@ def predict_traits(genome):
     pain_sensitivity = predict_pain_sensitivity(genome)
     endurance = predict_endurance(genome)
     bitter_taste = predict_bitter_taste(genome)
+    blood_type = predict_blood_type(genome)
 
     # APOE
     apoe = compute_apoe_genotype(genome)
@@ -444,5 +524,6 @@ def predict_traits(genome):
         "pain_sensitivity": pain_sensitivity,
         "endurance": endurance,
         "bitter_taste": bitter_taste,
+        "blood_type": blood_type,
         "apoe_genotype": apoe,
     }

@@ -13,6 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import { lookupGene } from "@/lib/api";
+import GeneInfoTooltip from "@/components/GeneInfoTooltip";
 
 export default function LookupPage() {
   const [file, setFile] = useState(null);
@@ -102,7 +103,9 @@ export default function LookupPage() {
             <Card key={entry.gene} className="section-card">
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="h6">{entry.gene}</Typography>
+                  <Typography variant="h6">
+                    <GeneInfoTooltip gene={entry.gene} snps={entry.matches.map((match) => match.rsid)} />
+                  </Typography>
                   <Chip label={`${entry.present_count}/${entry.matched_count} markers present`} size="small" />
                 </Stack>
                 <Stack spacing={1}>
@@ -111,7 +114,15 @@ export default function LookupPage() {
                       <CardContent>
                         <Stack direction="row" justifyContent="space-between" gap={2} flexWrap="wrap">
                           <div>
-                            <Typography variant="subtitle1">{match.rsid}</Typography>
+                            <Typography
+                              component="a"
+                              variant="subtitle1"
+                              href={`https://www.ncbi.nlm.nih.gov/snp/${encodeURIComponent(match.rsid)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {match.rsid}
+                            </Typography>
                             <Typography variant="body2" color="text.secondary">
                               {match.category} | {match.note}
                             </Typography>

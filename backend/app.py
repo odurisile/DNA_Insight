@@ -49,6 +49,7 @@ SKIN_SNPS = [
     "rs1800407",  # OCA2
     "rs1805007",  # MC1R
 ]
+BLOOD_SNPS = ["rs8176719", "rs8176746", "rs590787"]
 
 ALLOWED_EXTENSIONS = {".txt", ".csv", ".tsv"}
 
@@ -162,6 +163,7 @@ def upload_parents():
             "eye": extract_key_snps(parentA, EYE_SNPS),
             "hair": extract_key_snps(parentA, HAIR_SNPS),
             "skin": extract_key_snps(parentA, SKIN_SNPS),
+            "blood": extract_key_snps(parentA, BLOOD_SNPS),
         },
     }
 
@@ -175,6 +177,7 @@ def upload_parents():
             "eye": extract_key_snps(parentB, EYE_SNPS),
             "hair": extract_key_snps(parentB, HAIR_SNPS),
             "skin": extract_key_snps(parentB, SKIN_SNPS),
+            "blood": extract_key_snps(parentB, BLOOD_SNPS),
         },
     }
 

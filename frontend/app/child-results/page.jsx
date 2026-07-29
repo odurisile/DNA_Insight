@@ -4,6 +4,7 @@ import { Typography, Card, CardContent, Grid, Stack, Chip, LinearProgress, Box, 
 import Link from "next/link";
 import ChildAvatar from '@/components/ChildAvatar';
 import HeightPGSCard from "@/components/HeightPGSCard";
+import GeneInfoTooltip from "@/components/GeneInfoTooltip";
 
 // ---------------------------------------------
 // Color + MC1R red-shift utilities (hair heatmap)
@@ -800,8 +801,8 @@ export default function ChildResults() {
       });
     });
 
-    const fixedMinScore = -5.2;
-    const fixedMaxScore = 5.0;
+    const fixedMinScore = -3.2;
+    const fixedMaxScore = 6.8;
 
     // Converts eye score into display colors/labels for the heatmap cell.
     const shadeEye = (score) => {
@@ -970,46 +971,73 @@ export default function ChildResults() {
     };
 
     const redWeights = {
-      rs1805007: 1.2,
-      rs1805008: 1.1,
+      rs1805007: 1.3,
+      rs1805008: 1.15,
       rs1805009: 1.0,
     };
-    const redBias = -2.2;
 
     const lightWeights = {
-      rs12913832: 1.4,
-      rs12821256: 1.0,
-      rs16891982: 1.1,
-      rs1042602: 0.9,
+      rs12913832: 1.15,
+      rs12821256: 1.1,
     };
-    const lightBias = -1.6;
 
-    // Converts genotype-derived scores into class probabilities (softmax).
-    const classProbs = (childGenos) => {
-      const redScore =
-        redBias +
-        Object.keys(redWeights).reduce(
-          (sum, snp) => sum + redWeights[snp] * dosageForSnp(childGenos, snp),
-          0
-        );
-      const lightScore =
-        lightBias +
-        Object.keys(lightWeights).reduce(
-          (sum, snp) => sum + lightWeights[snp] * dosageForSnp(childGenos, snp),
-          0
-        );
-      const pigmentScore =
-        0.8 * dosageForSnp(childGenos, "rs16891982") +
-        0.6 * dosageForSnp(childGenos, "rs1042602");
-      const darknessScore = -lightScore + 0.4 * pigmentScore;
+    const pigmentWeights = {
+      rs16891982: 1.45,
+      rs1042602: 0.95,
+    };
 
+    // Projects each child genotype onto biologically interpretable hair axes.
+    const computeHairAxes = (childGenos) => {
+      // MC1R variants move hair toward copper/red independently of overall darkness.
+      const redScore = Object.keys(redWeights).reduce(
+        (sum, snp) => sum + redWeights[snp] * dosageForSnp(childGenos, snp),
+        0
+      );
+
+      // Light-associated loci move the baseline toward blonde/lower eumelanin.
+      const lightScore = Object.keys(lightWeights).reduce(
+        (sum, snp) => sum + lightWeights[snp] * dosageForSnp(childGenos, snp),
+        0
+      );
+
+      // Pigment loci increase darker eumelanin expression.
+      const pigmentScore = Object.keys(pigmentWeights).reduce(
+        (sum, snp) => sum + pigmentWeights[snp] * dosageForSnp(childGenos, snp),
+        0
+      );
+
+      const presentLightSnps = Object.keys(lightWeights).filter((snp) => childGenos[snp]).length;
+      const presentPigmentSnps = Object.keys(pigmentWeights).filter((snp) => childGenos[snp]).length;
+      const missingLightPenaltyRelief = presentLightSnps === 0 ? 0.7 : presentLightSnps === 1 ? 0.3 : 0;
+      const pigmentBoost = presentPigmentSnps <= 1 ? 0.35 : 0;
+
+      // Darkness is primarily eumelanin/pigment driven.
+      // Light-associated loci can pull away from darkness, but not enough to erase strong dark alleles.
+      // If key light SNPs are missing, avoid collapsing dark-supportive genotypes toward medium brown.
+      const darknessScore =
+        (1.55 * pigmentScore) -
+        (0.8 * lightScore) +
+        pigmentBoost +
+        missingLightPenaltyRelief;
+
+      return {
+        darknessScore,
+        redScore,
+        lightScore,
+        pigmentScore,
+      };
+    };
+
+    // Keeps a smooth confidence estimate available without forcing hard color categories.
+    const classProbs = (axes) => {
       const classScores = {
-        black: 1.3 * darknessScore + 0.4 * pigmentScore - 0.9 * redScore,
-        brown: 0.9 * darknessScore + 0.2 * pigmentScore - 0.6 * redScore,
-        blonde: 1.2 * lightScore - 0.7 * redScore,
-        red: 1.3 * redScore + 0.2 * darknessScore - 0.5 * lightScore,
-        orange: 1.0 * redScore + 0.4 * lightScore - 0.2 * darknessScore,
-        strawberry_blonde: 0.8 * redScore + 0.8 * lightScore - 0.2 * darknessScore,
+        black: 1.95 * axes.darknessScore + 0.9 * axes.pigmentScore - 0.08 * axes.redScore,
+        dark_brown: 1.35 * axes.darknessScore + 0.55 * axes.pigmentScore + 0.05 * axes.redScore,
+        brown: 0.78 * axes.darknessScore + 0.2 * axes.pigmentScore + 0.12 * axes.redScore,
+        blonde: 1.2 * axes.lightScore - 0.75 * axes.pigmentScore - 0.25 * axes.darknessScore,
+        red: 1.0 * axes.redScore + 0.2 * axes.lightScore + 0.08 * axes.darknessScore,
+        orange: 0.85 * axes.redScore + 0.5 * axes.lightScore - 0.18 * axes.darknessScore,
+        strawberry_blonde: 0.72 * axes.redScore + 0.75 * axes.lightScore - 0.2 * axes.pigmentScore,
       };
 
       const maxScore = Math.max(...Object.values(classScores));
@@ -1045,37 +1073,57 @@ export default function ChildResults() {
     const displayGametesA = showToggle && !hairHeatmapExpanded ? gametesA.slice(0, 8) : gametesA;
     const displayGametesB = showToggle && !hairHeatmapExpanded ? gametesB.slice(0, 8) : gametesB;
 
-    const classColors = {
-      black: [224, 190, 120],
-      brown: [98, 60, 38],
-      blonde: [20, 16, 14],
-      red: [170, 60, 35],
-      orange: [210, 110, 45],
-      strawberry_blonde: [235, 175, 110],
-    };
-    const brownAnchor = [140, 95, 60];
-    const darkBrownAnchor = [70, 45, 30];
+    const blondeAnchor = [240, 220, 140];
+    const lightBrownAnchor = [170, 125, 82];
+    const brownAnchor = [120, 80, 50];
+    const darkBrownAnchor = [72, 48, 30];
+    const blackAnchor = [16, 12, 10];
+    const redAnchor = [180, 60, 40];
 
-    // Color interpolation helpers for probability-based cell tinting.
-    const lerp = (a, b, t) => Math.round(a + (b - a) * t);
-    const mix = (a, b, t) => a.map((v, idx) => lerp(v, b[idx], clamp01(t)));
-    // Tints each class color by confidence to keep uncertain cells muted.
-    const probabilityTint = (baseRgb, prob, classKey) => {
-      const t = clamp01(prob);
-      if (classKey === "black") {
-        return mix(darkBrownAnchor, baseRgb, t);
+    // Color interpolation helpers for continuous heatmap coloring.
+    const lerp = (a, b, t) => Math.round(a + (b - a) * clamp01(t));
+    const mix = (a, b, t) => a.map((v, idx) => lerp(v, b[idx], t));
+
+    const hairColorFromAxes = ({ darknessScore, redScore, pigmentScore, lightScore }) => {
+      // Darkness backbone moves through blonde -> light brown -> brown -> dark brown -> black.
+      // Pigment and low lightness should visibly reach near-black instead of stalling in warm brown.
+      const darkness = clamp01(sigmoid((darknessScore - 1.2) * 1.25));
+
+      let baseRgb;
+      if (darkness < 0.2) {
+        baseRgb = mix(blondeAnchor, lightBrownAnchor, darkness / 0.2);
+      } else if (darkness < 0.45) {
+        baseRgb = mix(lightBrownAnchor, brownAnchor, (darkness - 0.2) / 0.25);
+      } else if (darkness < 0.72) {
+        baseRgb = mix(brownAnchor, darkBrownAnchor, (darkness - 0.45) / 0.27);
+      } else {
+        baseRgb = mix(darkBrownAnchor, blackAnchor, (darkness - 0.72) / 0.28);
       }
-      if (classKey === "blonde") {
-        return mix(brownAnchor, baseRgb, t);
-      }
-      return mix(brownAnchor, baseRgb, t);
+
+      // Allow strong pigment with weak light signal to push further into the black end.
+      const extraBlack = clamp01(sigmoid((pigmentScore - lightScore - 0.4) * 1.3));
+      baseRgb = mix(baseRgb, blackAnchor, extraBlack * 0.28);
+
+      // Red overlays the base tone, but becomes less visible as the hair approaches black.
+      const rawRed = clamp01(sigmoid((redScore - 1.7) * 1.1));
+      const darkSuppression = 1 - 0.78 * darkness;
+      const redBlend = rawRed * darkSuppression * 0.52;
+      return mix(baseRgb, redAnchor, redBlend);
+    };
+
+    // Confidence only changes vividness slightly; it does not choose the hue family.
+    const probabilityTint = (baseRgb, prob) => {
+      const t = clamp01((prob - 0.2) / 0.8);
+      const neutralRgb = mix(baseRgb, [90, 70, 55], 0.18);
+      return mix(neutralRgb, baseRgb, t);
     };
 
     const cells = [];
     displayGametesA.forEach((ga) => {
       displayGametesB.forEach((gb) => {
         const childGenos = buildChildGenos(ga, gb);
-        const probs = classProbs(childGenos);
+        const axes = computeHairAxes(childGenos);
+        const probs = classProbs(axes);
         const topEntry = Object.entries(probs).sort((a, b) => b[1] - a[1])[0];
         const topClass = topEntry[0];
         const topProb = topEntry[1];
@@ -1084,6 +1132,7 @@ export default function ChildResults() {
           ha: ga.label,
           hb: gb.label,
           pPair,
+          axes,
           probs,
           topClass,
           topProb,
@@ -1127,8 +1176,8 @@ export default function ChildResults() {
                   <div key={`ha-${rIdx}`} style={{ textAlign:"center", fontWeight:600 }}>{ha.label}</div>
                   {displayGametesB.map((hb, cIdx) => {
                     const cell = cells[rIdx * displayGametesB.length + cIdx];
-                    const baseRgb = classColors[cell.topClass] || [200, 200, 200];
-                    const shaded = probabilityTint(baseRgb, cell.topProb, cell.topClass);
+                    const rgb = hairColorFromAxes(cell.axes);
+                    const shaded = probabilityTint(rgb, cell.topProb);
                     const bg = `rgb(${shaded[0]},${shaded[1]},${shaded[2]})`;
                     return (
                       <div key={`cell-hair-${rIdx}-${cIdx}`} style={{
@@ -1291,6 +1340,7 @@ export default function ChildResults() {
     { key: "alcohol_flush", label: "Alcohol flush", value: childTraits.alcohol_flush },
     { key: "nicotine_dependence", label: "Nicotine dependence", value: childTraits.nicotine_dependence },
     { key: "folate_metabolism", label: "Folate metabolism", value: childTraits.folate_metabolism },
+    { key: "blood_type", label: "Blood type (ABO + RhD)", value: childTraits.blood_type },
   ].filter(t => t.value);
 
   const comparisonRows = [
@@ -1336,6 +1386,12 @@ export default function ChildResults() {
       parentB: normalizeTraitValue(parentB?.traits?.caffeine_metabolism),
       child: normalizeTraitValue(childTraits.caffeine_metabolism),
     },
+    {
+      label: "Blood type (ABO + RhD)",
+      parentA: normalizeTraitValue(parentA?.traits?.blood_type),
+      parentB: normalizeTraitValue(parentB?.traits?.blood_type),
+      child: normalizeTraitValue(childTraits.blood_type),
+    },
   ];
 
   const riskComparisonRows = [
@@ -1358,6 +1414,9 @@ export default function ChildResults() {
     { rsid: "rs1805008", gene: "MC1R", parentA: parentA?.key_snps?.hair?.rs1805008 || "N/A", parentB: parentB?.key_snps?.hair?.rs1805008 || "N/A" },
     { rsid: "rs1426654", gene: "SLC24A5", parentA: parentA?.key_snps?.skin?.rs1426654 || "N/A", parentB: parentB?.key_snps?.skin?.rs1426654 || "N/A" },
     { rsid: "rs16891982", gene: "SLC45A2", parentA: parentA?.key_snps?.skin?.rs16891982 || "N/A", parentB: parentB?.key_snps?.skin?.rs16891982 || "N/A" },
+    { rsid: "rs8176719", gene: "ABO", parentA: parentA?.key_snps?.blood?.rs8176719 || "N/A", parentB: parentB?.key_snps?.blood?.rs8176719 || "N/A" },
+    { rsid: "rs8176746", gene: "ABO", parentA: parentA?.key_snps?.blood?.rs8176746 || "N/A", parentB: parentB?.key_snps?.blood?.rs8176746 || "N/A" },
+    { rsid: "rs590787", gene: "RHD", parentA: parentA?.key_snps?.blood?.rs590787 || "N/A", parentB: parentB?.key_snps?.blood?.rs590787 || "N/A" },
   ];
 
   // Renders probability chips for a trait's distribution object.
@@ -1376,7 +1435,7 @@ export default function ChildResults() {
 
   return (
     <div className='container'>
-      <Typography variant='h4' gutterBottom>Child Predictor Results</Typography>
+      <Typography variant='h4' gutterBottom>Possible Combination Results</Typography>
       
       {renderDebugPanel()}
 
@@ -1395,6 +1454,9 @@ export default function ChildResults() {
             </Typography>
             <Typography variant='body1'>
               • Skin tone: {childTraits.skin_color?.result || "N/A"}
+            </Typography>
+            <Typography variant='body1'>
+              • Blood type (ABO + RhD): {childTraits.blood_type || "N/A"}
             </Typography>
             {childHeightMale?.predicted_height_cm_mean !== undefined && (
               <Typography variant='body1'>
@@ -1415,6 +1477,8 @@ export default function ChildResults() {
                 Hair: rs1805007 {child.child_genome["rs1805007"]?.genotype || "NA"}; rs1805008 {child.child_genome["rs1805008"]?.genotype || "NA"}; rs12821256 {child.child_genome["rs12821256"]?.genotype || "NA"}
                 <br />
                 Skin: rs1426654 {child.child_genome["rs1426654"]?.genotype || "NA"}; rs16891982 {child.child_genome["rs16891982"]?.genotype || "NA"}; rs1042602 {child.child_genome["rs1042602"]?.genotype || "NA"}
+                <br />
+                Blood: rs8176719 {child.child_genome["rs8176719"]?.genotype || "NA"}; rs8176746 {child.child_genome["rs8176746"]?.genotype || "NA"}; rs590787 {child.child_genome["rs590787"]?.genotype || "NA"}
                 {childHeightDetails?.snp_details && childHeightDetails.snp_details.length > 0 && (
                   <>
                     <br />
@@ -1500,7 +1564,21 @@ export default function ChildResults() {
                 <TableBody>
                   {keySnpComparisonRows.map((row) => (
                     <TableRow key={row.rsid}>
-                      <TableCell>{row.gene} ({row.rsid})</TableCell>
+                      <TableCell>
+                        <GeneInfoTooltip
+                          gene={row.gene}
+                          snps={keySnpComparisonRows.filter((item) => item.gene === row.gene).map((item) => item.rsid)}
+                        />
+                        {" ("}
+                        <a
+                          href={`https://www.ncbi.nlm.nih.gov/snp/${encodeURIComponent(row.rsid)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {row.rsid}
+                        </a>
+                        {")"}
+                      </TableCell>
                       <TableCell>{row.parentA}</TableCell>
                       <TableCell>{row.parentB}</TableCell>
                     </TableRow>

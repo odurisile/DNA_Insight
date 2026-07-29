@@ -8,3 +8,4 @@ polars
 PyYAML
 reportlab
 scikit-learn
+torch
