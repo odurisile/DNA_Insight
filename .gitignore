@@ -26,6 +26,7 @@ venv
 backend/venv/
 backend/.venv/
 __pycache__
+backend\utils\__pycache__
 *.pyc
 
 # OS noise
