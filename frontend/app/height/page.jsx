@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Typography, Card, CardContent, Button, LinearProgress, Stack, TextField, MenuItem } from "@mui/material";
+import { Typography, Card, CardContent, Button, Alert, Stack, TextField, MenuItem } from "@mui/material";
 import HeightPGSCard from "@/components/HeightPGSCard";
 import { computeHeightPGS } from "@/lib/api";
+import { AnalysisProgress, ConfidenceGuide, DemoGenomeButton, SessionNotice } from "@/components/AnalysisUX";
 
 export default function HeightPage() {
   const [file, setFile] = useState(null);
@@ -52,10 +53,10 @@ export default function HeightPage() {
       </Typography>
       <Card variant="outlined" sx={{ mb: 3 }}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }}>
             <Button variant="outlined" component="label">
               Choose file
-              <input type="file" hidden accept=".txt,.csv,.tsv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <input aria-label="Choose a raw DNA file" type="file" hidden accept=".txt,.csv,.tsv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             </Button>
             <Typography variant="body2" color="text.secondary">
               {file ? file.name : "No file selected"}
@@ -63,6 +64,7 @@ export default function HeightPage() {
             <Button variant="contained" onClick={onSubmit} disabled={!file || loading}>
               {loading ? "Computing..." : "Compute Height PGS"}
             </Button>
+            <DemoGenomeButton disabled={loading} onLoad={(sample, sampleError) => { setFile(sample); setError(sampleError?.message || null); }} />
           </Stack>
           <Stack direction="row" spacing={2} sx={{ mt: 2, flexWrap: "wrap" }}>
             <TextField
@@ -94,8 +96,12 @@ export default function HeightPage() {
               sx={{ minWidth: 200 }}
             />
           </Stack>
-          {loading && <LinearProgress sx={{ mt: 2 }} />}
-          {error && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            <AnalysisProgress active={loading} message="Calculating marker coverage and height distribution…" />
+            {error && <Alert severity="error">{error}</Alert>}
+            <SessionNotice />
+            <ConfidenceGuide />
+          </Stack>
         </CardContent>
       </Card>
 

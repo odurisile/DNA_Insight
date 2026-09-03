@@ -1,10 +1,34 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Typography, Card, CardContent, Grid, Stack, Chip, LinearProgress, Box, Switch, TextField, FormControlLabel, Button, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Typography, Card, CardContent, Grid, Stack, Chip, LinearProgress, Box, Switch, TextField, FormControlLabel, Button, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Link from "next/link";
 import ChildAvatar from '@/components/ChildAvatar';
 import HeightPGSCard from "@/components/HeightPGSCard";
 import GeneInfoTooltip from "@/components/GeneInfoTooltip";
+import { ConfidenceGuide, SessionNotice } from "@/components/AnalysisUX";
+
+const DEBUG_TRAIT_GROUPS = {
+  eye: { label: "Eye color", snps: ["rs12913832", "rs1129038", "rs1800407", "rs12896399", "rs16891982"] },
+  hair: { label: "Hair color & freckling", snps: ["rs12821256", "rs1805008", "rs1805007", "rs1805009", "rs16891982"] },
+  skin: { label: "Skin pigmentation", snps: ["rs1426654", "rs16891982", "rs1042602", "rs1800407", "rs1805007"] },
+  blood: { label: "Blood type (ABO + RhD)", snps: ["rs8176719", "rs8176746", "rs590787"] },
+  apoe: { label: "APOE", snps: ["rs429358", "rs7412"] },
+  diet_metabolism: { label: "Diet & metabolism", snps: ["rs4988235", "rs762551", "rs1801133", "rs2282679", "rs12785878", "rs10741657"] },
+  performance_cardiometabolic: { label: "Performance & cardiometabolic", snps: ["rs1815739", "rs8192678", "rs4253778", "rs699", "rs16969968"] },
+  alcohol_flush: { label: "Alcohol flush", snps: ["rs671"] },
+  celiac_risk: { label: "Celiac risk", snps: ["rs2187668", "rs7454108"] },
+  iron_metabolism: { label: "Iron metabolism", snps: ["rs1800562", "rs1799945"] },
+  sleep_recovery: { label: "Sleep & recovery", snps: ["rs12927162", "rs228697", "rs139315125", "rs4680", "rs1799971", "rs6746030"] },
+  taste_perception: { label: "Taste perception", snps: ["rs713598", "rs1726866", "rs10246939"] },
+};
+
+const buildEditableGroups = (source = {}) => Object.fromEntries(
+  Object.entries(DEBUG_TRAIT_GROUPS).map(([key, group]) => [
+    key,
+    Object.fromEntries(group.snps.map((snp) => [snp, source?.[key]?.[snp] || ""])),
+  ])
+);
 
 // ---------------------------------------------
 // Color + MC1R red-shift utilities (hair heatmap)
@@ -104,8 +128,8 @@ export default function ChildResults() {
   const [skinHeatmapExpanded, setSkinHeatmapExpanded] = useState(false);
   const [eyeHeatmapExpanded, setEyeHeatmapExpanded] = useState(false);
   // Local editable copies of parent SNP sets used in debug mode.
-  const [editableSnpsA, setEditableSnpsA] = useState({ eye: {}, hair: {}, skin: {} });
-  const [editableSnpsB, setEditableSnpsB] = useState({ eye: {}, hair: {}, skin: {} });
+  const [editableSnpsA, setEditableSnpsA] = useState(() => buildEditableGroups());
+  const [editableSnpsB, setEditableSnpsB] = useState(() => buildEditableGroups());
 
   // Load prediction payload from session storage and initialize editable SNP buffers.
   useEffect(() => {
@@ -114,16 +138,8 @@ export default function ChildResults() {
       const parsed = JSON.parse(raw);
       setData(parsed);
       if (parsed?.parentA?.key_snps && parsed?.parentB?.key_snps) {
-        setEditableSnpsA({
-          eye: { ...parsed.parentA.key_snps.eye },
-          hair: { ...parsed.parentA.key_snps.hair },
-          skin: { ...parsed.parentA.key_snps.skin },
-        });
-        setEditableSnpsB({
-          eye: { ...parsed.parentB.key_snps.eye },
-          hair: { ...parsed.parentB.key_snps.hair },
-          skin: { ...parsed.parentB.key_snps.skin },
-        });
+        setEditableSnpsA(buildEditableGroups(parsed.parentA.key_snps));
+        setEditableSnpsB(buildEditableGroups(parsed.parentB.key_snps));
       }
     }
     setLoading(false);
@@ -138,7 +154,7 @@ export default function ChildResults() {
     );
   }
 
-  if (!data) return <div className='container'>No child prediction data found.</div>;
+  if (!data) return <div className='container'><Alert severity="info">This prediction is no longer available because session results are cleared when the tab closes. Upload both files again to create a new prediction.</Alert></div>;
 
   const { parentA, parentB, child } = data;
   const childTraits = child?.child_traits || child?.traits || {};
@@ -177,16 +193,8 @@ export default function ChildResults() {
   // Restores editable SNP values back to the original loaded parent SNPs.
   const resetToOriginal = () => {
     if (parentA?.key_snps && parentB?.key_snps) {
-      setEditableSnpsA({
-        eye: { ...parentA.key_snps.eye },
-        hair: { ...parentA.key_snps.hair },
-        skin: { ...parentA.key_snps.skin },
-      });
-      setEditableSnpsB({
-        eye: { ...parentB.key_snps.eye },
-        hair: { ...parentB.key_snps.hair },
-        skin: { ...parentB.key_snps.skin },
-      });
+      setEditableSnpsA(buildEditableGroups(parentA.key_snps));
+      setEditableSnpsB(buildEditableGroups(parentB.key_snps));
     }
   };
 
@@ -242,12 +250,6 @@ export default function ChildResults() {
 
   // Renders an interactive debug panel for manually editing key SNP inputs.
   const renderDebugPanel = () => {
-    const allSnps = {
-      eye: ["rs12913832", "rs1800407", "rs1126809", "rs16891982", "rs12203592", "rs1408799"],
-      hair: ["rs1805007", "rs1805008", "rs1805009", "rs12821256", "rs12913832", "rs16891982", "rs1042602"],
-      skin: ["rs1426654", "rs16891982", "rs1042602", "rs1800407", "rs1805007"],
-    };
-
     return (
       <Card variant="outlined" sx={{ mb: 3, p: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -269,20 +271,22 @@ export default function ChildResults() {
           </Box>
         </Box>
 
-        <Grid container spacing={3}>
-          {Object.entries(allSnps).map(([trait, snps]) => (
-            <Grid item xs={12} key={trait}>
-              <Card variant="outlined" sx={{ p: 2 }}>
-                <Typography variant='subtitle1' sx={{ mb: 2, fontWeight: 600 }}>
-                  {trait === "eye" ? "Eye SNPs" : trait === "hair" ? "Hair SNPs" : "Skin SNPs"}
+        <Stack spacing={1}>
+          {Object.entries(DEBUG_TRAIT_GROUPS).map(([trait, group]) => (
+            <Accordion key={trait} disableGutters>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`${trait}-snp-panel`} id={`${trait}-snp-header`}>
+                <Typography variant='subtitle1' sx={{ fontWeight: 600 }}>
+                  {group.label} ({group.snps.length} SNPs)
                 </Typography>
+              </AccordionSummary>
+              <AccordionDetails id={`${trait}-snp-panel`}>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
                     <Typography variant='caption' color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                       Parent A
                     </Typography>
                     <Grid container spacing={1}>
-                      {snps.map((snp) => (
+                      {group.snps.map((snp) => (
                         <Grid item xs={6} sm={4} key={`A-${snp}`}>
                           <TextField
                             label={snp}
@@ -290,6 +294,7 @@ export default function ChildResults() {
                             fullWidth
                             value={editableSnpsA[trait]?.[snp] || ''}
                             onChange={(e) => updateSnp('A', trait, snp, e.target.value)}
+                            disabled={!debugMode}
                             placeholder="e.g., AA, AG, GG"
                             sx={{ '& .MuiInputBase-input': { fontSize: '0.75rem' } }}
                           />
@@ -302,7 +307,7 @@ export default function ChildResults() {
                       Parent B
                     </Typography>
                     <Grid container spacing={1}>
-                      {snps.map((snp) => (
+                      {group.snps.map((snp) => (
                         <Grid item xs={6} sm={4} key={`B-${snp}`}>
                           <TextField
                             label={snp}
@@ -310,6 +315,7 @@ export default function ChildResults() {
                             fullWidth
                             value={editableSnpsB[trait]?.[snp] || ''}
                             onChange={(e) => updateSnp('B', trait, snp, e.target.value)}
+                            disabled={!debugMode}
                             placeholder="e.g., AA, AG, GG"
                             sx={{ '& .MuiInputBase-input': { fontSize: '0.75rem' } }}
                           />
@@ -318,10 +324,10 @@ export default function ChildResults() {
                     </Grid>
                   </Grid>
                 </Grid>
-              </Card>
-            </Grid>
+              </AccordionDetails>
+            </Accordion>
           ))}
-        </Grid>
+        </Stack>
       </Card>
     );
   };
@@ -1433,8 +1439,74 @@ export default function ChildResults() {
     );
   };
 
+  const renderBloodTypeChart = () => {
+    const bloodDistribution = distribution.blood_type || {};
+    const rows = Object.entries(bloodDistribution)
+      .map(([label, probability]) => ({
+        label: label
+          .replace(/^Likely type\s+/i, "")
+          .replace("-", "−"),
+        probability: Number(probability) || 0,
+      }))
+      .filter((row) => row.probability > 0)
+      .sort((a, b) => b.probability - a.probability);
+
+    return (
+      <Card className="section-card" sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6">Possible child blood types</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Estimated from ABO and RhD tagging markers across 32 simulated inheritance outcomes.
+          </Typography>
+          {rows.length === 0 ? (
+            <Alert severity="info">A blood-type distribution could not be calculated from the available markers.</Alert>
+          ) : (
+            <Stack spacing={1.5} role="img" aria-label="Horizontal bar chart of possible child blood types">
+              {rows.map((row, index) => (
+                <Box key={row.label}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.5 }}>
+                    <Typography variant="subtitle2" fontWeight={index === 0 ? 700 : 500}>
+                      {row.label}
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700}>
+                      {(row.probability * 100).toFixed(1)}%
+                    </Typography>
+                  </Stack>
+                  <Box
+                    role="progressbar"
+                    aria-label={`${row.label} probability`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(row.probability * 100)}
+                    sx={{ height: 18, bgcolor: "grey.200", borderRadius: 999, overflow: "hidden" }}
+                  >
+                    <Box
+                      sx={{
+                        width: `${Math.max(1, row.probability * 100)}%`,
+                        height: "100%",
+                        bgcolor: index === 0 ? "primary.main" : "primary.light",
+                        borderRadius: 999,
+                      }}
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
+            These are research-oriented estimates from tagging variants, not a clinical blood-typing result.
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className='container'>
+      <Stack spacing={1.5} sx={{ mb: 2 }}>
+        <SessionNotice />
+        <ConfidenceGuide />
+      </Stack>
       <Typography variant='h4' gutterBottom>Possible Combination Results</Typography>
       
       {renderDebugPanel()}
@@ -1499,6 +1571,8 @@ export default function ChildResults() {
           </Typography>
         </CardContent>
       </Card>
+
+      {renderBloodTypeChart()}
 
       <Card className="section-card" sx={{ mb: 3 }}>
         <CardContent>

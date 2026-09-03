@@ -13,7 +13,7 @@ export default function PrivacyPage() {
               This project processes uploaded genotype files to generate research-oriented trait, risk, and ancestry-style outputs.
             </Typography>
             <Typography variant="body2">
-              Uploaded files are sent to the backend for analysis and temporary processing. Genetic data is sensitive. Do not upload files you do not own or have permission to analyze.
+              Uploaded files are sent to the backend for analysis and are deleted immediately after processing, including when processing fails. Genetic data is sensitive. Do not upload files you do not own or have permission to analyze.
             </Typography>
             <Typography variant="body2">
               This repository does not yet provide account-based retention controls, deletion workflows, or a production data-governance guarantee. Use it only in environments where you control storage and access.

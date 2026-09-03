@@ -7,13 +7,13 @@ import {
   Card,
   CardContent,
   Chip,
-  LinearProgress,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import { lookupGene } from "@/lib/api";
 import GeneInfoTooltip from "@/components/GeneInfoTooltip";
+import { AnalysisProgress, DemoGenomeButton, SessionNotice } from "@/components/AnalysisUX";
 
 export default function LookupPage() {
   const [file, setFile] = useState(null);
@@ -59,6 +59,7 @@ export default function LookupPage() {
                 Choose file
                 <input
                   type="file"
+                  aria-label="Choose a raw DNA file"
                   hidden
                   accept=".txt,.csv,.tsv"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -67,6 +68,7 @@ export default function LookupPage() {
               <Typography variant="body2" color="text.secondary">
                 {file ? file.name : "No file selected"}
               </Typography>
+              <DemoGenomeButton disabled={loading} onLoad={(sample, sampleError) => { setFile(sample); setError(sampleError?.message || ""); }} />
             </Stack>
 
             <TextField
@@ -80,8 +82,9 @@ export default function LookupPage() {
               {loading ? "Searching..." : "Lookup gene"}
             </Button>
 
-            {loading && <LinearProgress />}
+            <AnalysisProgress active={loading} message="Searching supported markers in your file…" />
             {error && <Alert severity="error">{error}</Alert>}
+            <SessionNotice />
             <Alert severity="info">
               This endpoint searches the supported gene catalog used by the app. It is not a whole-genome annotation service.
             </Alert>

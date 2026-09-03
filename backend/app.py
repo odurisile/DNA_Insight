@@ -50,6 +50,14 @@ SKIN_SNPS = [
     "rs1805007",  # MC1R
 ]
 BLOOD_SNPS = ["rs8176719", "rs8176746", "rs590787"]
+APOE_SNPS = ["rs429358", "rs7412"]
+DIET_SNPS = ["rs4988235", "rs762551", "rs1801133", "rs2282679", "rs12785878", "rs10741657"]
+PERFORMANCE_SNPS = ["rs1815739", "rs8192678", "rs4253778", "rs699", "rs16969968"]
+ALCOHOL_SNPS = ["rs671"]
+CELIAC_SNPS = ["rs2187668", "rs7454108"]
+IRON_SNPS = ["rs1800562", "rs1799945"]
+SLEEP_RECOVERY_SNPS = ["rs12927162", "rs228697", "rs139315125", "rs4680", "rs1799971", "rs6746030"]
+TASTE_SNPS = ["rs713598", "rs1726866", "rs10246939"]
 
 ALLOWED_EXTENSIONS = {".txt", ".csv", ".tsv"}
 
@@ -60,6 +68,25 @@ def extract_key_snps(genome, snps):
         if snp in genome and genome[snp].get("genotype"):
             out[snp] = genome[snp]["genotype"]
     return out
+
+
+def extract_debug_snp_groups(genome):
+    """Return all supported editable marker groups for the child debug UI."""
+    groups = {
+        "eye": EYE_SNPS,
+        "hair": HAIR_SNPS,
+        "skin": SKIN_SNPS,
+        "blood": BLOOD_SNPS,
+        "apoe": APOE_SNPS,
+        "diet_metabolism": DIET_SNPS,
+        "performance_cardiometabolic": PERFORMANCE_SNPS,
+        "alcohol_flush": ALCOHOL_SNPS,
+        "celiac_risk": CELIAC_SNPS,
+        "iron_metabolism": IRON_SNPS,
+        "sleep_recovery": SLEEP_RECOVERY_SNPS,
+        "taste_perception": TASTE_SNPS,
+    }
+    return {name: extract_key_snps(genome, snps) for name, snps in groups.items()}
 
 
 def error_response(message, status_code=400, details=None):
@@ -91,14 +118,30 @@ def save_upload(upload, subdir="uploads"):
     return str(file_path)
 
 
+def delete_upload(file_path):
+    """Best-effort removal of sensitive genotype data from local storage."""
+    if file_path:
+        try:
+            Path(file_path).unlink(missing_ok=True)
+        except OSError:
+            app.logger.exception("Failed to delete processed upload")
+
+
+def parse_uploaded_genome(upload, subdir="uploads"):
+    """Save only long enough to parse, then remove the original upload."""
+    file_path = save_upload(upload, subdir=subdir)
+    try:
+        return parse_raw_dna_file(file_path)
+    finally:
+        delete_upload(file_path)
+
+
 # ---------------------------------------------------------
 # Helper
 # ---------------------------------------------------------
 def load_genome_from_request(upload):
     """Reads raw DNA file"""
-    filepath = save_upload(upload, subdir="upload")
-    genome = parse_raw_dna_file(filepath)
-    return genome
+    return parse_uploaded_genome(upload, subdir="upload")
 
 
 # ---------------------------------------------------------
@@ -114,8 +157,7 @@ def upload_dna():
         return error_response("Empty filename")
 
     try:
-        file_path = save_upload(file)
-        dna_data = parse_raw_dna_file(file_path)
+        dna_data = parse_uploaded_genome(file)
     except ValueError as exc:
         return error_response(str(exc))
     except Exception as exc:
@@ -159,12 +201,7 @@ def upload_parents():
         "key_genotypes": {
             "rs12913832": parentA.get("rs12913832", {}).get("genotype")
         },
-        "key_snps": {
-            "eye": extract_key_snps(parentA, EYE_SNPS),
-            "hair": extract_key_snps(parentA, HAIR_SNPS),
-            "skin": extract_key_snps(parentA, SKIN_SNPS),
-            "blood": extract_key_snps(parentA, BLOOD_SNPS),
-        },
+        "key_snps": extract_debug_snp_groups(parentA),
     }
 
     parentB_data = {
@@ -173,15 +210,10 @@ def upload_parents():
         "key_genotypes": {
             "rs12913832": parentB.get("rs12913832", {}).get("genotype")
         },
-        "key_snps": {
-            "eye": extract_key_snps(parentB, EYE_SNPS),
-            "hair": extract_key_snps(parentB, HAIR_SNPS),
-            "skin": extract_key_snps(parentB, SKIN_SNPS),
-            "blood": extract_key_snps(parentB, BLOOD_SNPS),
-        },
+        "key_snps": extract_debug_snp_groups(parentB),
     }
 
-    child = predict_child(parentA, parentB, simulations=8)
+    child = predict_child(parentA, parentB, simulations=32)
 
     # Height PGS for the sampled child genome (sex-specific)
     try:
@@ -258,8 +290,7 @@ def gene_lookup():
         return error_response("Missing gene or rsID query")
 
     try:
-        file_path = save_upload(upload)
-        genome = parse_raw_dna_file(file_path)
+        genome = parse_uploaded_genome(upload)
     except ValueError as exc:
         return error_response(str(exc))
     except Exception as exc:
@@ -292,8 +323,7 @@ def gwas_traits():
         return error_response("Invalid min_snps", details=str(exc))
 
     try:
-        file_path = save_upload(upload)
-        genome = parse_raw_dna_file(file_path)
+        genome = parse_uploaded_genome(upload)
     except ValueError as exc:
         return error_response(str(exc))
     except Exception as exc:
@@ -326,28 +356,31 @@ def height_pgs():
         return error_response(str(exc))
 
     try:
-        genome = parse_raw_dna_file(file_path)
-    except Exception as e:
-        return error_response("Failed to parse genotype file", details=str(e))
+        try:
+            genome = parse_raw_dna_file(file_path)
+        except Exception as e:
+            return error_response("Failed to parse genotype file", details=str(e))
 
-    sex = (request.form.get("sex") or "unspecified").lower()
-    ancestry_payload = request.form.get("global_ancestry")
-    global_ancestry = None
-    if ancestry_payload:
-        try:
-            global_ancestry = json.loads(ancestry_payload)
-        except Exception as e:
-            return error_response("Invalid global_ancestry JSON", details=str(e))
-    elif os.environ.get("ANCESTRY_INFERENCE_CONFIG"):
-        try:
-            ancestry_output = infer_global_ancestry_from_file(
-                raw_path=file_path,
-                output_dir=os.path.join(os.getcwd(), "uploads", "ancestry"),
-                config_path=os.environ["ANCESTRY_INFERENCE_CONFIG"],
-            )
-            global_ancestry = ancestry_output.get("global_ancestry")
-        except Exception as e:
-            return error_response("Failed to infer ancestry", status_code=500, details=str(e))
+        sex = (request.form.get("sex") or "unspecified").lower()
+        ancestry_payload = request.form.get("global_ancestry")
+        global_ancestry = None
+        if ancestry_payload:
+            try:
+                global_ancestry = json.loads(ancestry_payload)
+            except Exception as e:
+                return error_response("Invalid global_ancestry JSON", details=str(e))
+        elif os.environ.get("ANCESTRY_INFERENCE_CONFIG"):
+            try:
+                ancestry_output = infer_global_ancestry_from_file(
+                    raw_path=file_path,
+                    output_dir=os.path.join(os.getcwd(), "uploads", "ancestry"),
+                    config_path=os.environ["ANCESTRY_INFERENCE_CONFIG"],
+                )
+                global_ancestry = ancestry_output.get("global_ancestry")
+            except Exception as e:
+                return error_response("Failed to infer ancestry", status_code=500, details=str(e))
+    finally:
+        delete_upload(file_path)
 
     observed_height_cm = None
     if request.form.get("observed_height_cm"):

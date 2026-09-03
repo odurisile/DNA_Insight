@@ -6,7 +6,6 @@ import {
   Alert,
   Button,
   Checkbox,
-  CircularProgress,
   Card,
   CardContent,
   Chip,
@@ -18,6 +17,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import { useRouter } from "next/navigation";
 import { uploadSingleDNA } from "@/lib/api";
+import { AnalysisProgress, ConfidenceGuide, DemoGenomeButton, SelectedFileNotice, SessionNotice } from "@/components/AnalysisUX";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -62,6 +62,7 @@ export default function UploadPage() {
           </Stack>
 
           <input
+            aria-label="Choose a raw DNA file"
             type="file"
             accept=".txt,.csv,.tsv"
             onChange={(e) => {
@@ -70,6 +71,15 @@ export default function UploadPage() {
             }}
             style={{ marginTop: 10 }}
           />
+
+          <DemoGenomeButton
+            disabled={loading}
+            onLoad={(sample, sampleError) => {
+              setFile(sample);
+              setError(sampleError?.message || "");
+            }}
+          />
+          <SelectedFileNotice file={file} />
 
           <FormControlLabel
             control={<Checkbox checked={consent} onChange={(e) => setConsent(e.target.checked)} />}
@@ -85,6 +95,8 @@ export default function UploadPage() {
           <Alert severity="warning">
             Upload only files you own or have permission to analyze.
           </Alert>
+          <SessionNotice />
+          <ConfidenceGuide />
 
           <Button
             startIcon={loading ? null : <UploadFileIcon />}
@@ -93,8 +105,9 @@ export default function UploadPage() {
             disabled={!file || !consent || loading}
             onClick={handleUpload}
           >
-            {loading ? <CircularProgress size={24} /> : "Analyze and show genotypes"}
+            {loading ? "Analyzing…" : "Analyze and show genotypes"}
           </Button>
+          <AnalysisProgress active={loading} message="Reading markers and building your report…" />
         </CardContent>
       </Card>
     </div>

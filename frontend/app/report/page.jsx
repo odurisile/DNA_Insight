@@ -26,6 +26,7 @@ import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import ScienceIcon from "@mui/icons-material/Science";
 import { generatePDF } from "@/lib/api";
 import GeneInfoTooltip from "@/components/GeneInfoTooltip";
+import { ConfidenceGuide, SessionNotice } from "@/components/AnalysisUX";
 
 const EMPTY_VALUE = "N/A";
 
@@ -179,7 +180,7 @@ export default function ReportPage() {
       }));
   }, [clinvarFindings]);
 
-  if (!data) return <div className="container">No report data found.</div>;
+  if (!data) return <div className="container"><Alert severity="info">This report is no longer available because session results are cleared when the tab closes. Upload a file again to create a new report.</Alert></div>;
 
   async function downloadPDF() {
     try {
@@ -244,6 +245,10 @@ export default function ReportPage() {
       </div>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <Stack spacing={1.5} sx={{ mb: 2 }}>
+        <SessionNotice />
+        <ConfidenceGuide />
+      </Stack>
 
       <Alert severity="warning" sx={{ mb: 2 }}>
         This report is informational and research-oriented. It is not a diagnosis, treatment plan, or substitute for medical advice.

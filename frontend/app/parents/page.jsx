@@ -8,13 +8,13 @@ import {
   Card,
   CardContent,
   Checkbox,
-  CircularProgress,
   FormControlLabel,
   Stack,
   Typography,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { uploadParentsDNA } from "@/lib/api";
+import { AnalysisProgress, ConfidenceGuide, DemoGenomeButton, SelectedFileNotice, SessionNotice } from "@/components/AnalysisUX";
 
 export default function ParentsUploadPage() {
   const router = useRouter();
@@ -78,6 +78,7 @@ export default function ParentsUploadPage() {
           <Stack spacing={1}>
             <Typography>Parent A</Typography>
             <input
+              aria-label="Choose Parent A raw DNA file"
               type="file"
               accept=".txt,.csv,.tsv"
               onChange={(e) => {
@@ -85,11 +86,21 @@ export default function ParentsUploadPage() {
                 setError("");
               }}
             />
+            <DemoGenomeButton
+              disabled={loading}
+              label="Use sample for Parent A"
+              onLoad={(sample, sampleError) => {
+                setFiles((current) => ({ ...current, p1: sample }));
+                setError(sampleError?.message || "");
+              }}
+            />
+            <SelectedFileNotice file={files.p1} />
           </Stack>
 
           <Stack spacing={1}>
             <Typography>Parent B</Typography>
             <input
+              aria-label="Choose Parent B raw DNA file"
               type="file"
               accept=".txt,.csv,.tsv"
               onChange={(e) => {
@@ -97,6 +108,15 @@ export default function ParentsUploadPage() {
                 setError("");
               }}
             />
+            <DemoGenomeButton
+              disabled={loading}
+              label="Use sample for Parent B"
+              onLoad={(sample, sampleError) => {
+                setFiles((current) => ({ ...current, p2: sample }));
+                setError(sampleError?.message || "");
+              }}
+            />
+            <SelectedFileNotice file={files.p2} />
           </Stack>
 
           <FormControlLabel
@@ -109,6 +129,8 @@ export default function ParentsUploadPage() {
           </Typography>
 
           {error && <Alert severity="error">{error}</Alert>}
+          <SessionNotice />
+          <ConfidenceGuide />
 
           <Button
             variant="contained"
@@ -116,8 +138,9 @@ export default function ParentsUploadPage() {
             disabled={!files.p1 || !files.p2 || !consent || loading}
             onClick={handleUpload}
           >
-            {loading ? <CircularProgress size={24} /> : "Predict child"}
+            {loading ? "Simulating…" : "Predict child"}
           </Button>
+          <AnalysisProgress active={loading} message="Comparing both genomes and simulating child outcomes…" />
         </CardContent>
       </Card>
     </div>

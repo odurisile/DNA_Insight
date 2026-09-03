@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Chip,
-  LinearProgress,
   MenuItem,
   Stack,
   Table,
@@ -19,6 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import { fetchGwasTraits } from "@/lib/api";
+import { AnalysisProgress, ConfidenceGuide, DemoGenomeButton, SessionNotice } from "@/components/AnalysisUX";
 
 export default function TraitsPage() {
   const [file, setFile] = useState(null);
@@ -80,6 +80,7 @@ export default function TraitsPage() {
                 Choose file
                 <input
                   type="file"
+                  aria-label="Choose a raw DNA file"
                   hidden
                   accept=".txt,.csv,.tsv"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -88,6 +89,7 @@ export default function TraitsPage() {
               <Typography variant="body2" color="text.secondary">
                 {file ? file.name : "No file selected"}
               </Typography>
+              <DemoGenomeButton disabled={loading} onLoad={(sample, sampleError) => { setFile(sample); setError(sampleError?.message || ""); }} />
             </Stack>
 
             <Stack direction="row" spacing={2} flexWrap="wrap">
@@ -123,8 +125,10 @@ export default function TraitsPage() {
               {loading ? "Scoring traits..." : "Load GWAS traits"}
             </Button>
 
-            {loading && <LinearProgress />}
+            <AnalysisProgress active={loading} message="Matching markers and scoring GWAS traits…" />
             {error && <Alert severity="error">{error}</Alert>}
+            <SessionNotice />
+            <ConfidenceGuide />
             <Alert severity="info">
               This surfaces trait strings present in the local GWAS database. It does not mean every trait is clinically valid or production-ready for consumer reporting.
             </Alert>
@@ -153,6 +157,7 @@ export default function TraitsPage() {
               {filteredTraits.length === 0 ? (
                 <Typography color="text.secondary">No GWAS traits matched the current filters.</Typography>
               ) : (
+                <div className="responsive-table" role="region" aria-label="GWAS trait results" tabIndex={0}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -173,6 +178,7 @@ export default function TraitsPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

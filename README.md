@@ -32,13 +32,13 @@ pip install -r requirements.txt
 python app.py
 ```
 The server listens on port 5000.
-The backend accepts `.txt`, `.csv`, and `.tsv` genotype uploads and stores them under randomized filenames.
+The backend accepts `.txt`, `.csv`, and `.tsv` genotype uploads. Files use randomized temporary names and are deleted immediately after processing, including when parsing fails.
 
 ### Reference data (not committed)
 Large files like `backend/clinvar.gz`, `backend/nih/clinvar.gz`, and `backend/nih/dbsnp.gz` are ignored. Place them under `backend/` locally or use Git LFS if needed.
 
 ### Uploads
-User uploads live under `backend/upload/` and `backend/uploads/` (ignored by git).
+User uploads are processed temporarily under `backend/upload/` and `backend/uploads/` (ignored by git) and deleted immediately after each request is processed.
 
 ## Frontend setup (Next.js)
 ```
